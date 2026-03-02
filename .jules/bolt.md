@@ -1,0 +1,3 @@
+## 2024-05-24 - Projectile Enum Allocations
+**Learning:** In the `CSimulation` update loop, anonymous callback classes like `CUnitEnumFunction` and `CDestructableEnumFunction`, along with localized state tracking classes like `AtomicInteger` or `AbilityPointTarget`, cause significant per-frame allocations per active projectile when doing spatial queries (e.g. `enumUnitsInRect`).
+**Action:** Extract these callbacks and wrapper classes to instance fields. Populate target state (like counts, `CSimulation` context, and coordinates) into instance primitive fields before passing the pre-allocated callback functions to the spatial query systems.
