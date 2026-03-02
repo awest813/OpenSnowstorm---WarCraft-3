@@ -11,6 +11,43 @@ The spread of the unverified false rumor of Warsmash's takedown vastly exceeded 
 ## Discord
 https://discord.com/invite/ucjftZ7x7H
 
+## Project Status & Roadmap
+
+Warsmash is undergoing a structured modernization effort. Progress is tracked in
+[`docs/ENGINE_MODERNIZATION_ANALYSIS.md`](docs/ENGINE_MODERNIZATION_ANALYSIS.md)
+and [`CHANGELOG.md`](CHANGELOG.md).
+
+| Phase | Focus | Status |
+|-------|-------|--------|
+| **A** | Diagnostics, launcher QoL, CI, docs | **Complete** |
+| **B** | Light-system leak fix, GLSL shader normalization, parser consolidation design | **Next** |
+| **C** | Parser unification, server hardening, async asset pipeline | Planned |
+
+### Phase A (Complete)
+
+Phase A delivered startup diagnostics, frame-pacing tracking, a full set of
+launcher flags (`-help`, `-window`, `-fps`, `-vsync/-novsync`, `-msaa`,
+`-validate`, `-ini`, `-loadfile`, `-nolog`), CI for Linux/Windows on Java 17/21,
+a Gradle upgrade, `CONTRIBUTING.md`, and `docs/COMPATIBILITY.md`.
+
+### Phase B (Next)
+
+Phase B targets three areas of technical debt:
+
+1. **Light-system memory leak** — orphaned `LightInstance` objects accumulate
+   when culled model instances are pruned from the scene without calling
+   `removeLights()`. This causes frame-time drift on long sessions.
+2. **GLSL shader version mismatch** — MDX shaders use `#version 120`, terrain
+   shaders use `#version 330 core`, and test shaders use `#version 450 core`.
+   Phase B will normalise everything to `#version 330 core` to match the GL 3.3
+   requirement.
+3. **Parser consolidation design** — the codebase has two SLK parsers
+   (`SlkFile` and `DataTable.readSLK()`) and two INI parsers (`IniFile` and
+   `DataTable.readTXT()`). Phase B will produce a design for unifying them;
+   Phase C will implement it.
+
+See the [full roadmap](docs/ENGINE_MODERNIZATION_ANALYSIS.md) for details.
+
 
 ## Before you Begin: INI File
 Regardless of whether you want to edit Warsmash from an IDE, run it from command line, or build a binary release, in any case you will run into the problem of the `warsmash.ini` config file. I maintained the Retera Model Studio project since 2012, and in particular I was constantly updating my code in parallel with Activision Blizzard's Warcraft III leading up to the release of Reforged. The decisions their Classics Games Team made in those years substantially impacted and split apart the Warcraft III modding community. Rather than Reforged releasing all at once and breaking everything, at first from 2017 - 2019 there were a series of patches that dramatically altered and restructured the Warcraft III game, sometimes to an entirely new structure _in each patch_, all while **not using the Reforged label**. The first patch in that patch cycle was the Patch 1.27, followed by many others. Originally, in 2017, the fundamental Warcraft III asset loading utilities that I wrote for Retera Model Studio (that I now also use on Warsmash!) were using code that I had written to automatically detect the location of the "one true Warcraft III installation" on the user computer from the Windows registry.
