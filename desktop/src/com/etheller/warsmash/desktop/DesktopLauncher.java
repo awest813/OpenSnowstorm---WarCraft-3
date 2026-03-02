@@ -104,78 +104,78 @@ public class DesktopLauncher {
 		Boolean vSyncEnabled = null;
 		LaunchProfile profile = null;
 		final List<String> unknownArgs = new ArrayList<>();
-		for (int argIndex = 0; argIndex < normalizedArgs.length; argIndex++) {
-			if ("-help".equals(normalizedArgs[argIndex]) || "--help".equals(normalizedArgs[argIndex]) || "-h".equals(normalizedArgs[argIndex])) {
+		for (int argIndex = 0; argIndex < arg.length; argIndex++) {
+			if ("-help".equals(arg[argIndex]) || "--help".equals(arg[argIndex]) || "-h".equals(arg[argIndex])) {
 				printHelpAndExit();
 			}
-			else if ((normalizedArgs.length > (argIndex + 1)) && ("-profile".equals(normalizedArgs[argIndex]) || "--profile".equals(normalizedArgs[argIndex]))) {
+			else if ((arg.length > (argIndex + 1)) && ("-profile".equals(arg[argIndex]) || "--profile".equals(arg[argIndex]))) {
 				argIndex++;
 				profile = LaunchProfile.parse(normalizedArgs[argIndex]);
 			}
-			else if ("-window".equals(normalizedArgs[argIndex]) || "-windowed".equals(normalizedArgs[argIndex])
-					|| "--windowed".equals(normalizedArgs[argIndex])) {
+			else if ("-window".equals(arg[argIndex]) || "-windowed".equals(arg[argIndex])
+					|| "--windowed".equals(arg[argIndex])) {
 				windowedMode = Boolean.TRUE;
 				if ((normalizedArgs.length > (argIndex + 2)) && isInteger(normalizedArgs[argIndex + 1]) && isInteger(normalizedArgs[argIndex + 2])) {
 					argIndex++;
-					windowedWidth = parseIntWithFallback(normalizedArgs[argIndex], DEFAULT_WINDOWED_WIDTH, "window width", 1);
+					windowedWidth = parseIntWithFallback(arg[argIndex], DEFAULT_WINDOWED_WIDTH, "window width", 1);
 					argIndex++;
-					windowedHeight = parseIntWithFallback(normalizedArgs[argIndex], DEFAULT_WINDOWED_HEIGHT, "window height", 1);
+					windowedHeight = parseIntWithFallback(arg[argIndex], DEFAULT_WINDOWED_HEIGHT, "window height", 1);
 				}
 				else {
 					windowedWidth = DEFAULT_WINDOWED_WIDTH;
 					windowedHeight = DEFAULT_WINDOWED_HEIGHT;
 				}
 			}
-			else if ((normalizedArgs.length > (argIndex + 1)) && ("-width".equals(normalizedArgs[argIndex]) || "--width".equals(normalizedArgs[argIndex]))) {
+			else if ((arg.length > (argIndex + 1)) && ("-width".equals(arg[argIndex]) || "--width".equals(arg[argIndex]))) {
 				argIndex++;
-				windowedWidth = parseIntWithFallback(normalizedArgs[argIndex], DEFAULT_WINDOWED_WIDTH, "window width", 1);
+				windowedWidth = parseIntWithFallback(arg[argIndex], DEFAULT_WINDOWED_WIDTH, "window width", 1);
 				if (windowedMode == null) {
 					windowedMode = Boolean.TRUE;
 				}
 			}
-			else if ((normalizedArgs.length > (argIndex + 1))
-					&& ("-height".equals(normalizedArgs[argIndex]) || "--height".equals(normalizedArgs[argIndex]))) {
+			else if ((arg.length > (argIndex + 1))
+					&& ("-height".equals(arg[argIndex]) || "--height".equals(arg[argIndex]))) {
 				argIndex++;
-				windowedHeight = parseIntWithFallback(normalizedArgs[argIndex], DEFAULT_WINDOWED_HEIGHT, "window height", 1);
+				windowedHeight = parseIntWithFallback(arg[argIndex], DEFAULT_WINDOWED_HEIGHT, "window height", 1);
 				if (windowedMode == null) {
 					windowedMode = Boolean.TRUE;
 				}
 			}
-			else if ("-fullscreen".equals(normalizedArgs[argIndex]) || "--fullscreen".equals(normalizedArgs[argIndex])) {
+			else if ("-fullscreen".equals(arg[argIndex]) || "--fullscreen".equals(arg[argIndex])) {
 				windowedMode = Boolean.FALSE;
 			}
-			else if ("-nolog".equals(normalizedArgs[argIndex])) {
+			else if ("-nolog".equals(arg[argIndex])) {
 				noLogs = true;
 			}
-			else if ("-log".equals(normalizedArgs[argIndex]) || "--log".equals(normalizedArgs[argIndex])) {
+			else if ("-log".equals(arg[argIndex]) || "--log".equals(arg[argIndex])) {
 				noLogs = false;
 			}
-			else if ((normalizedArgs.length > (argIndex + 1))
-					&& ("-logdir".equals(normalizedArgs[argIndex]) || "--logdir".equals(normalizedArgs[argIndex]))) {
+			else if ((arg.length > (argIndex + 1))
+					&& ("-logdir".equals(arg[argIndex]) || "--logdir".equals(arg[argIndex]))) {
 				argIndex++;
-				logDirectory = normalizedArgs[argIndex];
+				logDirectory = arg[argIndex];
 			}
-			else if ("-vsync".equals(normalizedArgs[argIndex])) {
+			else if ("-vsync".equals(arg[argIndex])) {
 				vSyncEnabled = Boolean.TRUE;
 			}
 			else if ("-novsync".equals(normalizedArgs[argIndex])) {
 				vSyncEnabled = Boolean.FALSE;
 			}
-			else if ((normalizedArgs.length > (argIndex + 1)) && ("-fps".equals(normalizedArgs[argIndex]) || "--fps".equals(normalizedArgs[argIndex]))) {
+			else if ((arg.length > (argIndex + 1)) && ("-fps".equals(arg[argIndex]) || "--fps".equals(arg[argIndex]))) {
 				argIndex++;
-				targetFps = parseIntWithFallback(normalizedArgs[argIndex], 0, "target FPS", 0);
+				targetFps = parseIntWithFallback(arg[argIndex], 0, "target FPS", 0);
 			}
-			else if ((normalizedArgs.length > (argIndex + 1))
-					&& ("-msaa".equals(normalizedArgs[argIndex]) || "--msaa".equals(normalizedArgs[argIndex]))) {
+			else if ((arg.length > (argIndex + 1))
+					&& ("-msaa".equals(arg[argIndex]) || "--msaa".equals(arg[argIndex]))) {
 				argIndex++;
-				msaaSamples = parseIntWithFallback(normalizedArgs[argIndex], 0, "MSAA samples", 0);
+				msaaSamples = parseIntWithFallback(arg[argIndex], 0, "MSAA samples", 0);
 			}
-			else if ((normalizedArgs.length > (argIndex + 1))
-					&& ("-loadfile".equals(normalizedArgs[argIndex]) || "--loadfile".equals(normalizedArgs[argIndex]))) {
+			else if ((arg.length > (argIndex + 1))
+					&& ("-loadfile".equals(arg[argIndex]) || "--loadfile".equals(arg[argIndex]))) {
 				argIndex++;
 				fileToLoad = normalizedArgs[argIndex];
 			}
-			else if ((normalizedArgs.length > (argIndex + 1)) && ("-ini".equals(normalizedArgs[argIndex]) || "--ini".equals(normalizedArgs[argIndex]))) {
+			else if ((arg.length > (argIndex + 1)) && ("-ini".equals(arg[argIndex]) || "--ini".equals(arg[argIndex]))) {
 				argIndex++;
 				iniPath = normalizedArgs[argIndex];
 			}
@@ -185,6 +185,13 @@ public class DesktopLauncher {
 			else {
 				unknownArgs.add(normalizedArgs[argIndex]);
 			}
+			else {
+				unknownArgs.add(arg[argIndex]);
+			}
+		}
+		if (!unknownArgs.isEmpty()) {
+			System.err.println("Warning: unknown launcher option(s): " + String.join(", ", unknownArgs));
+			System.err.println("Use -help to see available options.");
 		}
 		if (!unknownArgs.isEmpty()) {
 			System.err.println("Warning: unknown launcher option(s): " + String.join(", ", unknownArgs));
@@ -315,7 +322,6 @@ public class DesktopLauncher {
 		System.out.println("  -loadfile <path>             Auto-load a map or toc file");
 		System.out.println("  -nolog                       Keep stdout/stderr in console");
 		System.out.println("  -logdir <path>               Store .out/.err logs in a custom directory");
-		System.out.println("  Long options also accept --name=value syntax");
 		System.out.println("  -validate | --validate       Check warsmash.ini asset paths and exit");
 		System.exit(0);
 	}
@@ -358,32 +364,6 @@ public class DesktopLauncher {
 		System.out.println("  INI: " + ((iniPath == null) ? "warsmash.ini" : iniPath));
 		System.out.println("  Auto-load: " + ((fileToLoad == null) ? "none" : fileToLoad));
 		System.out.println("  Logging: " + (noLogs ? "stdout/stderr console" : ("files in " + logDirectory)));
-	}
-
-	private static String[] normalizeArguments(final String[] arg) {
-		final List<String> normalized = new ArrayList<>();
-		for (final String value : arg) {
-			if (value.startsWith("--") && value.contains("=")) {
-				final int equalsIndex = value.indexOf('=');
-				final String optionName = value.substring(0, equalsIndex);
-				final String optionValue = value.substring(equalsIndex + 1);
-				normalized.add(optionName);
-				normalized.add(optionValue);
-			}
-			else {
-				normalized.add(value);
-			}
-		}
-		return normalized.toArray(new String[0]);
-	}
-
-	private static boolean isOptionRequiringValue(final String option) {
-		return "-profile".equals(option) || "--profile".equals(option) || "-width".equals(option)
-				|| "--width".equals(option) || "-height".equals(option) || "--height".equals(option)
-				|| "-fps".equals(option) || "--fps".equals(option) || "-msaa".equals(option)
-				|| "--msaa".equals(option) || "-loadfile".equals(option) || "--loadfile".equals(option)
-				|| "-ini".equals(option) || "--ini".equals(option) || "-logdir".equals(option)
-				|| "--logdir".equals(option);
 	}
 
 	private static String findIniPathArg(final String[] arg) {
