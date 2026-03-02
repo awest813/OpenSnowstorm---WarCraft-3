@@ -62,6 +62,7 @@ import com.etheller.warsmash.units.custom.WTS;
 import com.etheller.warsmash.units.manager.MutableObjectData.WorldEditorDataType;
 import com.etheller.warsmash.util.MappedData;
 import com.etheller.warsmash.util.Quadtree;
+import com.etheller.warsmash.util.SimulationBudgetTracker;
 import com.etheller.warsmash.util.QuadtreeIntersector;
 import com.etheller.warsmash.util.RenderMathUtils;
 import com.etheller.warsmash.util.War3ID;
@@ -233,6 +234,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 	public MdxComplexInstance dncTarget;
 	public CSimulation simulation;
 	private float updateTime = 0;
+	private final SimulationBudgetTracker simulationBudgetTracker = new SimulationBudgetTracker();
 
 	// for World Editor, I think
 	public Vector2[] startLocations = new Vector2[WarsmashConstants.MAX_PLAYERS];
@@ -1182,7 +1184,9 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 			while (this.updateTime >= WarsmashConstants.SIMULATION_STEP_TIME) {
 				if (this.gameTurnManager.getLatestCompletedTurn() >= this.simulation.getGameTurnTick()) {
 					this.updateTime -= WarsmashConstants.SIMULATION_STEP_TIME;
+					final long simStart = this.simulationBudgetTracker.beginTick();
 					this.simulation.update();
+					this.simulationBudgetTracker.endTick(simStart);
 					this.gameTurnManager.turnCompleted(this.simulation.getGameTurnTick());
 				}
 				else {

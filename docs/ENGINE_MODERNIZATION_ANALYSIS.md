@@ -24,7 +24,7 @@ around four recurring concerns:
 | **A** | Compatibility knobs, diagnostics, docs, CI | **Complete** |
 | **B** | Light leak fix, shader normalization, parser consolidation design | **Complete** |
 | **C** | Per-frame allocation reduction, light-data caching, simulation instrumentation | **Complete** |
-| **D** | Parser unification, server hardening, async asset pipeline | Next |
+| **D** | Parser unification, server hardening, async asset pipeline | In Progress |
 | **E** | Full JASS/Lua scripting, map format support to 1.32, multiplayer hardening | Planned |
 | **F** | Community modding layer, asset-override system, mod manager API | Planned |
 
@@ -287,22 +287,23 @@ to be dropped in around `CSimulation.step()` in Phase D.
 
 ---
 
-## Phase D — Implementation & Hardening (Next)
+## Phase D — Implementation & Hardening (In Progress)
 
 **Duration:** 4–8 weeks
 
-| Item | Description |
-|------|-------------|
-| Parser unification | Implement the Phase B design; migrate all callers to one SLK and one INI parser |
-| Server hardening | Rate limiting, pre-auth rejection, session-token efficiency |
-| Async asset pipeline | Move map/asset loading to background threads with progress feedback |
-| Wire SimulationBudgetTracker | Instrument `CSimulation.step()` for per-session budget visibility |
-| Wire ObjectPool | Apply `ObjectPool<T>` to particle emitters and simulation allocations |
-| Asset cache telemetry | Cache hit/miss stats for frequently loaded textures and models |
-| Package ownership boundaries | Enforce layer separation (`render`, `simulation`, `net`, `assets`) |
-| Named launch profiles | `-profile safe/balanced/high` convenience presets |
-| GL fallback strategy | Graceful degradation when GL features are unavailable |
-| Smoke tests | Automated startup + asset-discovery + map-load tests |
+| Item | Description | Status |
+|------|-------------|--------|
+| Parser unification — interface + adapters | `TableDataSource`, `SlkFileDataSource`, `IniFileDataSource`, `DataTableSource`; `MappedData` migrated | ✓ Done |
+| Wire SimulationBudgetTracker | `War3MapViewer` wraps `CSimulation.update()` with `beginTick()`/`endTick()` | ✓ Done |
+| Named launch profiles | `-profile safe/balanced/high` in `DesktopLauncher` | ✓ Done |
+| GL fallback strategy | `StartupDiagnostics.checkGLRequirements()` — version gate + user-readable error + exit | ✓ Done |
+| Server hardening | `LoginRateLimiter` (5 failures / 60 s → 5-min block); O(1) `disconnected()` via `writerToSession` reverse map | ✓ Done |
+| Asset cache telemetry | `AssetCacheTelemetry` instruments `ModelViewer.load()` and `loadGeneric()` | ✓ Done |
+| Package ownership boundaries | `package-info.java` for `render`, `simulation`, `net`, `assets` layers | ✓ Done |
+| Smoke / unit tests | `ObjectPoolTest`, `SimulationBudgetTrackerTest`, `StartupDiagnosticsTest`, `AssetCacheTelemetryTest` | ✓ Done |
+| Parser unification — remaining SLK/INI callers | Migrate splat, anim-sound, terrain readers to `TableDataSource` | Pending |
+| Wire ObjectPool | Apply `ObjectPool<T>` to particle emitters and simulation allocations | Pending |
+| Async asset pipeline | Move map/asset loading to background threads with progress feedback | Pending |
 
 ---
 

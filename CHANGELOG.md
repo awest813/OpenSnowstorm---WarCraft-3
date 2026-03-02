@@ -15,6 +15,62 @@ Changes are grouped by category:
 
 ---
 
+## Phase D — Implementation & Hardening (2026-03-02)
+
+### perf
+- **SimulationBudgetTracker wired**: `War3MapViewer.update()` now wraps each
+  `CSimulation.update()` call with `SimulationBudgetTracker.beginTick()` /
+  `endTick()`. Per-tick timing is reported every ~60 s with avg/max and overrun
+  percentage.
+- **Asset cache telemetry**: New `AssetCacheTelemetry` class instruments both
+  cache paths in `ModelViewer` (`load()` and `loadGeneric()`). Hit/miss counts
+  and hit-rate percentage are logged to stdout every 50 cache misses via
+  `[AssetCache]` lines.
+
+### compat
+- **GL version guard**: `StartupDiagnostics.checkGLRequirements()` is now called
+  from `WarsmashGdxMultiScreenGame.create()` immediately after the capability
+  report. If the driver reports OpenGL < 3.3 the engine prints a user-readable
+  error message (detected vs. required version, plus driver update suggestions)
+  and exits with code 1. Requires no user action on supported hardware.
+- **Named launch profiles**: `DesktopLauncher` accepts a new `-profile <name>`
+  flag with three presets:
+  - `safe` — windowed 1280×720, no MSAA, vsync on, 60 fps cap.
+  - `balanced` — windowed 1280×720, 2× MSAA, vsync on, 60/30 fps cap.
+  - `high` — fullscreen, 4× MSAA, vsync on, uncapped.
+  Individual flags (`-window`, `-msaa`, `-fps`, etc.) still override the profile.
+  Profile selection is announced in the startup log.
+
+### fix
+- **Server: O(n) disconnection lookup eliminated**: `GamingNetworkServerBusinessLogicImpl`
+  previously iterated all active sessions to find the one matching a disconnected
+  writer — an O(n) scan that became a DDoS amplification vector under load. A
+  new `writerToSession` reverse-map is now kept in sync at `login()` /
+  `killSession()`, reducing disconnection handling to O(1).
+- **Server: login and account-creation rate limiting**: New `LoginRateLimiter`
+  tracks failed auth attempts per remote address using a 60-second sliding window.
+  After 5 failures the address is blocked for 5 minutes; subsequent requests are
+  rejected before touching user storage. The block is announced in the server log
+  with address, threshold, and cooldown duration.
+
+### qol
+- **Package ownership markers**: `package-info.java` files added for the four
+  principal architecture layers — `render` (`viewer5`), `simulation`
+  (`simulation`), `assets` (`datasources`), and `net` (`networking`) — documenting
+  allowed and forbidden cross-layer dependencies.
+
+### test
+- `ObjectPoolTest` (8 tests): acquire/release round-trip, overflow behaviour,
+  hit-rate calculation, `resetStats()` isolation.
+- `SimulationBudgetTrackerTest` (5 tests): begin/end semantics, no-throw on
+  zero-duration ticks, report-interval boundary at 3 600 ticks.
+- `StartupDiagnosticsTest` (9 tests): `parseGLVersion()` against NVIDIA, Intel
+  DCH, Mesa, ATI, and degenerate inputs.
+- `AssetCacheTelemetryTest` (7 tests): hit/miss counting, hit-rate, reset, and
+  periodic-report no-throw.
+
+---
+
 ## Phase D — Parser Unification Kickoff (2026-03-02)
 
 ### fix

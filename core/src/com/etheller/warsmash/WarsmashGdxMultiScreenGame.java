@@ -13,6 +13,7 @@ public class WarsmashGdxMultiScreenGame extends Game implements CanvasProvider {
 	@Override
 	public void create() {
 		StartupDiagnostics.reportGLCapabilities();
+		StartupDiagnostics.checkGLRequirements();
 	}
 
 	@Override

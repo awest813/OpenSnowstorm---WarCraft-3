@@ -15,6 +15,7 @@ import com.badlogic.gdx.graphics.GL20;
 import com.etheller.warsmash.common.FetchDataTypeName;
 import com.etheller.warsmash.common.LoadGenericCallback;
 import com.etheller.warsmash.datasources.DataSource;
+import com.etheller.warsmash.util.AssetCacheTelemetry;
 import com.etheller.warsmash.viewer5.gl.ClientBuffer;
 import com.etheller.warsmash.viewer5.gl.WebGL;
 import com.etheller.warsmash.viewer5.handlers.ResourceHandler;
@@ -178,8 +179,10 @@ public abstract class ModelViewer {
 					final Resource resource = this.fetchCache.get(finalSrc);
 
 					if (resource != null) {
+						AssetCacheTelemetry.recordHit(finalSrc);
 						return resource;
 					}
+					AssetCacheTelemetry.recordMiss(finalSrc);
 				}
 
 				final ResourceHandler handler = (ResourceHandler) handlerAndDataType[0];
@@ -251,8 +254,10 @@ public abstract class ModelViewer {
 			// cache is shared.
 			// That being said, this should be used for generic resources, and it makes the
 			// typing a lot easier.
+			AssetCacheTelemetry.recordHit(path);
 			return (GenericResource) cachedResource;
 		}
+		AssetCacheTelemetry.recordMiss(path);
 
 		final GenericResource resource = new GenericResource(this, null, null, path, callback);
 

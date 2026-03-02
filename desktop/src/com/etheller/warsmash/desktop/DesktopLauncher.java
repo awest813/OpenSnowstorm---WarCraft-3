@@ -48,6 +48,24 @@ public class DesktopLauncher {
 	private static final int DEFAULT_WINDOWED_WIDTH = 1280;
 	private static final int DEFAULT_WINDOWED_HEIGHT = 720;
 
+	private enum LaunchProfile {
+		SAFE, BALANCED, HIGH;
+
+		static LaunchProfile parse(final String name) {
+			switch (name.toLowerCase(java.util.Locale.ROOT)) {
+			case "safe":
+				return SAFE;
+			case "balanced":
+				return BALANCED;
+			case "high":
+				return HIGH;
+			default:
+				System.err.println("Unknown profile '" + name + "'. Valid values: safe, balanced, high. Using balanced.");
+				return BALANCED;
+			}
+		}
+	}
+
 	public static void main(final String[] arg) {
 		System.out.println("Warsmash engine is starting...");
 		if (Arrays.asList(arg).contains("-validate") || Arrays.asList(arg).contains("--validate")) {
@@ -77,9 +95,14 @@ public class DesktopLauncher {
 		Integer targetFps = null;
 		Integer msaaSamples = null;
 		Boolean vSyncEnabled = null;
+		LaunchProfile profile = null;
 		for (int argIndex = 0; argIndex < arg.length; argIndex++) {
 			if ("-help".equals(arg[argIndex]) || "--help".equals(arg[argIndex]) || "-h".equals(arg[argIndex])) {
 				printHelpAndExit();
+			}
+			else if ((arg.length > (argIndex + 1)) && "-profile".equals(arg[argIndex])) {
+				argIndex++;
+				profile = LaunchProfile.parse(arg[argIndex]);
 			}
 			else if ("-window".equals(arg[argIndex]) || "-windowed".equals(arg[argIndex])) {
 				config.fullscreen = false;
@@ -120,6 +143,10 @@ public class DesktopLauncher {
 				iniPath = arg[argIndex];
 			}
 		}
+		if (profile != null) {
+			applyProfile(profile, config);
+		}
+		// Individual flags override profile settings.
 		if (vSyncEnabled != null) {
 			config.vSyncEnabled = vSyncEnabled;
 		}
@@ -178,9 +205,44 @@ public class DesktopLauncher {
 		});
 	}
 
+	private static void applyProfile(final LaunchProfile profile, final LwjglApplicationConfiguration config) {
+		switch (profile) {
+		case SAFE:
+			System.out.println("[Profile] safe — reduced effects, no MSAA, windowed 1280x720, vsync on");
+			config.fullscreen = false;
+			config.width = DEFAULT_WINDOWED_WIDTH;
+			config.height = DEFAULT_WINDOWED_HEIGHT;
+			config.samples = 0;
+			config.vSyncEnabled = true;
+			config.foregroundFPS = 60;
+			config.backgroundFPS = 60;
+			break;
+		case BALANCED:
+			System.out.println("[Profile] balanced — windowed 1280x720, 2x MSAA, vsync on, 60 fps cap");
+			config.fullscreen = false;
+			config.width = DEFAULT_WINDOWED_WIDTH;
+			config.height = DEFAULT_WINDOWED_HEIGHT;
+			config.samples = 2;
+			config.vSyncEnabled = true;
+			config.foregroundFPS = 60;
+			config.backgroundFPS = 30;
+			break;
+		case HIGH:
+			System.out.println("[Profile] high — fullscreen, 4x MSAA, vsync on, uncapped fps");
+			config.samples = 4;
+			config.vSyncEnabled = true;
+			config.foregroundFPS = 0;
+			config.backgroundFPS = 0;
+			break;
+		default:
+			break;
+		}
+	}
+
 	private static void printHelpAndExit() {
 		System.out.println("Warsmash desktop launcher options:");
 		System.out.println("  -help | --help | -h          Show this help message");
+		System.out.println("  -profile <name>              Apply a preset: safe | balanced | high");
 		System.out.println("  -window | -windowed [w h]    Run in windowed mode (defaults to 1280x720)");
 		System.out.println("  -vsync | -novsync            Force VSync on or off");
 		System.out.println("  -fps <value>                 Limit foreground/background FPS (0 = uncapped)");
