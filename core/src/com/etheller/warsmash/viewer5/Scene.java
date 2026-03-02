@@ -217,10 +217,12 @@ public abstract class Scene {
 		innerUpdate(dt, frame);
 
 		for (int i = this.batchedInstances.size() - 1; i >= this.currentBatchedInstance; i--) {
+			this.batchedInstances.get(i).removeLights(this);
 			this.batchedInstances.remove(i);
 		}
 
 		for (int i = this.instances.size() - 1; i >= this.currentInstance; i--) {
+			this.instances.get(i).removeLights(this);
 			this.instances.remove(i);
 		}
 		Collections.sort(this.instances, this.instanceDepthComparator);

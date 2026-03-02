@@ -14,8 +14,8 @@ This document captures a practical modernization roadmap focused on four goals:
 | Phase | Scope | Status |
 |-------|-------|--------|
 | **A** | Compatibility knobs, diagnostics, docs, CI | **Complete** |
-| **B** | Light leak fix, shader normalization, parser consolidation design | **Next** |
-| **C** | Parser unification, server hardening, async asset pipeline | Planned |
+| **B** | Light leak fix, shader normalization, parser consolidation design | **Complete** |
+| **C** | Parser unification, server hardening, async asset pipeline | Next |
 
 ---
 
@@ -45,9 +45,9 @@ This document captures a practical modernization roadmap focused on four goals:
 ### 1.2 Technical debt reduction
 
 - Consolidate duplicate parser implementations (SLK/INI variants) behind one
-  interface and one canonical backend. *(Phase B — design; Phase C — implement)*
+  interface and one canonical backend. *(Phase B — design ✓; Phase C — implement)*
 - Normalize shader targets and enforce one compatibility strategy (or a small
-  explicit set). *(Phase B)*
+  explicit set). *(Phase B ✓)*
 - Introduce package-level ownership boundaries (`render`, `simulation`, `net`,
   `assets`). *(Phase C)*
 
@@ -84,7 +84,7 @@ profiles can be introduced as a convenience layer in Phase B or C.
 
 ### 3.1 Immediate wins (low risk)
 
-- Profile and fix the documented Light-system leak. *(Phase B)*
+- Profile and fix the documented Light-system leak. *(Phase B ✓)*
 - ~~Add optional frame cap defaults for laptops/thermals.~~ *(Done — Phase A)*
 - ~~Expose anti-aliasing and VSync controls at launch.~~ *(Done — Phase A)*
 
@@ -142,7 +142,7 @@ All Phase A deliverables have been merged. See `CHANGELOG.md` for the full list.
 
 ## Phase B — Stability & Shader Normalization
 
-**Duration:** 2–4 weeks | **Status:** Next
+**Duration:** 2–4 weeks | **Status:** Complete
 
 Phase B targets the three highest-impact technical debt items: the Light-system
 memory leak, the GLSL version mismatch across subsystems, and a design document
@@ -227,7 +227,7 @@ shaders at 450 core exceed the minimum by two major versions.
      test could be added in Phase C).
    - Manual test on an NVIDIA and an Intel/Mesa driver to confirm no regressions.
 
-### B.3 Parser Consolidation Design
+### B.3 Parser Consolidation Design *(Complete)*
 
 **Goal:** produce a design document (not implementation) for unifying the
 duplicate SLK and INI parsers behind a single interface.
@@ -255,11 +255,26 @@ power the high-level unit data, ability, and terrain APIs.
 5. Test strategy: comparison of parsed output between old and new paths for a
    set of reference SLK/INI files.
 
-This design will be implemented in Phase C.
+This design will be implemented in Phase C. See
+`docs/PARSER_CONSOLIDATION_DESIGN.md` for the full deliverable.
 
 ---
 
-## Phase C — Implementation & Hardening (Planned)
+## Phase B — Deliverables Summary
+
+| Item | Details |
+|------|---------|
+| Light-system leak fix | `Scene.update()` calls `removeLights(scene)` on pruned instances before removing them |
+| Light-manager guard | `W3xSceneWorldLightManager.remove()` is idempotent; logs active light count every ~60 s |
+| MDX HD shader upgrade | `vsHd` / `fsHd` — `#version 120` → `330 core`; `attribute`/`varying` → `in`/`out`; `texture2D` → `texture`; `gl_FragColor` → explicit `out vec4 fragColor` |
+| Bone-texture 330 helper | `MdxShaders.BONE_TEXTURE_330` — `#version 330 core`-compatible inline version used by `vsHd` |
+| Transforms upgrade | `Shaders.transforms` — `attribute` → `in` (used exclusively by `vsHd`) |
+| Test-shader version | `WarsmashTestGame2` / `WarsmashTestGame3` — `#version 450 core` → `330 core` |
+| Parser consolidation design | `docs/PARSER_CONSOLIDATION_DESIGN.md` |
+
+---
+
+## Phase C — Implementation & Hardening (Next)
 
 **Duration:** 4–8 weeks
 

@@ -15,10 +15,45 @@ Changes are grouped by category:
 
 ---
 
-## [Unreleased]
+## Phase B — Stability & Shader Normalization (2026-03-02)
 
-*Phase B work in progress — see `docs/ENGINE_MODERNIZATION_ANALYSIS.md` for the
-full roadmap.*
+### fix
+- **Light-system memory leak**: `Scene.update()` now calls `removeLights(scene)`
+  on every instance pruned from the active list before removing it, so orphaned
+  `LightInstance` objects are properly unregistered from
+  `W3xSceneWorldLightManager`. Previously these remained in the light manager
+  indefinitely, causing unbounded memory growth and frame-time drift on long
+  sessions.
+
+### perf
+- `W3xSceneWorldLightManager.remove()` is now idempotent: `ArrayList.remove()`
+  silently ignores missing elements, preventing spurious state corruption on
+  double-removal.
+- `W3xSceneWorldLightManager` logs active dynamic light count to stdout every
+  ~60 seconds (`[LightManager] active dynamic lights=N`) so the leak fix can be
+  verified without a heap profiler.
+
+### render
+- **GLSL version normalization**: MDX HD shaders (`vsHd` / `fsHd`) upgraded
+  from `#version 120` to `#version 330 core`:
+  - `attribute` → `in` (vertex inputs).
+  - `varying` → `out` (vertex) / `in` (fragment) for all interpolated
+    variables.
+  - `texture2D()` → `texture()` for all active sampler calls.
+  - `gl_FragColor` replaced by an explicit `out vec4 fragColor` declaration.
+  - `Shaders.boneTexture` embedded in `vsHd` updated via a `#version 330
+    core`-specific copy (`BONE_TEXTURE_330`) that replaces `texture2D` with
+    `texture`.
+  - `Shaders.transforms` (used exclusively by `vsHd`) updated: `attribute`
+    → `in` for all vertex-input declarations.
+- Test shaders in `WarsmashTestGame2` and `WarsmashTestGame3` lowered from
+  `#version 450 core` to `#version 330 core` — no 450-specific features were
+  used.
+
+### docs
+- Added `docs/PARSER_CONSOLIDATION_DESIGN.md`: design document for unifying
+  the duplicate SLK/INI parser stacks behind a single `TableDataSource`
+  interface (implementation deferred to Phase C).
 
 ---
 

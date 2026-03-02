@@ -4,7 +4,10 @@ import com.etheller.warsmash.viewer5.Shaders;
 import com.etheller.warsmash.viewer5.handlers.mdx.MdxHandler.ShaderEnvironmentType;
 
 public class MdxShaders {
-	public static final String vsHd = "#version 120\r\n" + Shaders.boneTexture + "\r\n" + //
+	/** GLSL 330-core-compatible bone-texture helper (texture2D → texture). */
+	private static final String BONE_TEXTURE_330 = Shaders.boneTexture.replace("texture2D", "texture");
+
+	public static final String vsHd = "#version 330 core\r\n" + BONE_TEXTURE_330 + "\r\n" + //
 			"    uniform mat4 u_VP;\r\n" + //
 			"    uniform mat4 u_MV;\r\n" + //
 			"    uniform vec3 u_eyePos;\r\n" + //
@@ -13,10 +16,10 @@ public class MdxShaders {
 			"    uniform float u_layerAlpha;\r\n" + //
 			"    uniform bool u_hasBones;\r\n" + //
 			"    " + //
-			"    attribute vec3 a_position;\r\n" + //
-			"    attribute vec3 a_normal;\r\n" + //
-			"    attribute vec2 a_uv;\r\n" + //
-			"    attribute vec4 a_tangent;\r\n" + //
+			"    in vec3 a_position;\r\n" + //
+			"    in vec3 a_normal;\r\n" + //
+			"    in vec2 a_uv;\r\n" + //
+			"    in vec4 a_tangent;\r\n" + //
 			// TODO ONLY_TANGENTS
 			"    \r\n" + //
 			"    \r\n" + //
@@ -29,18 +32,18 @@ public class MdxShaders {
 			"}\r\n" + //
 			"    \r\n" + //
 			"    \r\n" + //
-			"    varying vec2 v_uv;\r\n" + //
-			"    varying float v_layerAlpha;\r\n" + //
-			"    varying vec4 v_lightDir;\r\n" + //
-			"    varying vec4 v_lightDir2;\r\n" + //
-			"    varying vec4 v_lightDir3;\r\n" + //
-			"    varying vec4 v_lightDir4;\r\n" + //
-			"    varying vec4 v_lightDir5;\r\n" + //
-			"    varying vec4 v_lightDir6;\r\n" + //
-			"    varying vec4 v_lightDir7;\r\n" + //
-			"    varying vec4 v_lightDir8;\r\n" + //
-			"    varying vec3 v_eyeVec;\r\n" + //
-			"    varying vec3 v_normal;\r\n" + //
+			"    out vec2 v_uv;\r\n" + //
+			"    out float v_layerAlpha;\r\n" + //
+			"    out vec4 v_lightDir;\r\n" + //
+			"    out vec4 v_lightDir2;\r\n" + //
+			"    out vec4 v_lightDir3;\r\n" + //
+			"    out vec4 v_lightDir4;\r\n" + //
+			"    out vec4 v_lightDir5;\r\n" + //
+			"    out vec4 v_lightDir6;\r\n" + //
+			"    out vec4 v_lightDir7;\r\n" + //
+			"    out vec4 v_lightDir8;\r\n" + //
+			"    out vec3 v_eyeVec;\r\n" + //
+			"    out vec3 v_normal;\r\n" + //
 			"    \r\n" + //
 			"    \r\n" + //
 			"    void main() {\r\n" + //
@@ -75,8 +78,8 @@ public class MdxShaders {
 			"      \r\n" + //
 			// TODO fix giant hack on lighting
 			"      float rowPos = (0.5) / u_lightTextureHeight;\r\n" + //
-			"      vec4 lightPosition = texture2D(u_lightTexture, vec2(0.125, rowPos));\r\n" + //
-			"      vec4 lightExtra = texture2D(u_lightTexture, vec2(0.375, rowPos));\r\n" + //
+			"      vec4 lightPosition = texture(u_lightTexture, vec2(0.125, rowPos));\r\n" + //
+			"      vec4 lightExtra = texture(u_lightTexture, vec2(0.375, rowPos));\r\n" + //
 			"      vec3 u_lightPos = mv * lightPosition.xyz;\r\n" + //
 			"      vec3 lightDir;\r\n" + //
 			"      if(lightExtra.x > 0.5) {\r\n" + //
@@ -93,8 +96,8 @@ public class MdxShaders {
 			"      \r\n" + //
 			"      if( u_lightTextureHeight > 1.5 ) {\r\n" + //
 			"          float rowPos = (1.5) / u_lightTextureHeight;\r\n" + //
-			"          vec4 lightPosition2 = texture2D(u_lightTexture, vec2(0.125, rowPos));\r\n" + //
-			"          vec4 lightExtra2 = texture2D(u_lightTexture, vec2(0.375, rowPos));\r\n" + //
+			"          vec4 lightPosition2 = texture(u_lightTexture, vec2(0.125, rowPos));\r\n" + //
+			"          vec4 lightExtra2 = texture(u_lightTexture, vec2(0.375, rowPos));\r\n" + //
 			"          vec3 u_lightPos2 = mv * lightPosition2.xyz;\r\n" + //
 
 			"          vec3 lightDir2;\r\n" + //
@@ -111,8 +114,8 @@ public class MdxShaders {
 			"          }\r\n" + //
 			"          if( u_lightTextureHeight > 2.5 ) {\r\n" + //
 			"              float rowPos = (2.5) / u_lightTextureHeight;\r\n" + //
-			"              vec4 lightPosition3 = texture2D(u_lightTexture, vec2(0.125, rowPos));\r\n" + //
-			"              vec4 lightExtra3 = texture2D(u_lightTexture, vec2(0.375, rowPos));\r\n" + //
+			"              vec4 lightPosition3 = texture(u_lightTexture, vec2(0.125, rowPos));\r\n" + //
+			"              vec4 lightExtra3 = texture(u_lightTexture, vec2(0.375, rowPos));\r\n" + //
 			"              vec3 u_lightPos3 = mv * lightPosition3.xyz;\r\n" + //
 			"              vec3 lightDir3;\r\n" + //
 			"              if(lightExtra3.x > 0.5) {\r\n" + //
@@ -128,8 +131,8 @@ public class MdxShaders {
 			"              }\r\n" + //
 			"              if( u_lightTextureHeight > 3.5 ) {\r\n" + //
 			"                  float rowPos = (3.5) / u_lightTextureHeight;\r\n" + //
-			"                  vec4 lightPosition4 = texture2D(u_lightTexture, vec2(0.125, rowPos));\r\n" + //
-			"                  vec4 lightExtra4 = texture2D(u_lightTexture, vec2(0.375, rowPos));\r\n" + //
+			"                  vec4 lightPosition4 = texture(u_lightTexture, vec2(0.125, rowPos));\r\n" + //
+			"                  vec4 lightExtra4 = texture(u_lightTexture, vec2(0.375, rowPos));\r\n" + //
 			"                  vec3 u_lightPos4 = mv * lightPosition4.xyz;\r\n" + //
 			"                  vec3 lightDir4;\r\n" + //
 			"                  if(lightExtra4.x > 0.5) {\r\n" + //
@@ -145,8 +148,8 @@ public class MdxShaders {
 			"                  }\r\n" + //
 			"                  if( u_lightTextureHeight > 4.5 ) {\r\n" + //
 			"                      float rowPos = (4.5) / u_lightTextureHeight;\r\n" + //
-			"                      vec4 lightPosition5 = texture2D(u_lightTexture, vec2(0.125, rowPos));\r\n" + //
-			"                      vec4 lightExtra5 = texture2D(u_lightTexture, vec2(0.375, rowPos));\r\n" + //
+			"                      vec4 lightPosition5 = texture(u_lightTexture, vec2(0.125, rowPos));\r\n" + //
+			"                      vec4 lightExtra5 = texture(u_lightTexture, vec2(0.375, rowPos));\r\n" + //
 			"                      vec3 u_lightPos5 = mv * lightPosition5.xyz;\r\n" + //
 			"                      vec3 lightDir5;\r\n" + //
 			"                      if(lightExtra5.x > 0.5) {\r\n" + //
@@ -163,8 +166,8 @@ public class MdxShaders {
 			"                      }\r\n" + //
 			"                      if( u_lightTextureHeight > 5.5 ) {\r\n" + //
 			"                          float rowPos = (5.5) / u_lightTextureHeight;\r\n" + //
-			"                          vec4 lightPosition6 = texture2D(u_lightTexture, vec2(0.125, rowPos));\r\n" + //
-			"                          vec4 lightExtra6 = texture2D(u_lightTexture, vec2(0.375, rowPos));\r\n" + //
+			"                          vec4 lightPosition6 = texture(u_lightTexture, vec2(0.125, rowPos));\r\n" + //
+			"                          vec4 lightExtra6 = texture(u_lightTexture, vec2(0.375, rowPos));\r\n" + //
 			"                          vec3 u_lightPos6 = mv * lightPosition6.xyz;\r\n" + //
 			"                          vec3 lightDir6;\r\n" + //
 			"                          if(lightExtra6.x > 0.5) {\r\n" + //
@@ -181,8 +184,8 @@ public class MdxShaders {
 			"                          }\r\n" + //
 			"                          if( u_lightTextureHeight > 6.5 ) {\r\n" + //
 			"                              float rowPos = (6.5) / u_lightTextureHeight;\r\n" + //
-			"                              vec4 lightPosition7 = texture2D(u_lightTexture, vec2(0.125, rowPos));\r\n" + //
-			"                              vec4 lightExtra7 = texture2D(u_lightTexture, vec2(0.375, rowPos));\r\n" + //
+			"                              vec4 lightPosition7 = texture(u_lightTexture, vec2(0.125, rowPos));\r\n" + //
+			"                              vec4 lightExtra7 = texture(u_lightTexture, vec2(0.375, rowPos));\r\n" + //
 			"                              vec3 u_lightPos7 = mv * lightPosition7.xyz;\r\n" + //
 			"                              vec3 lightDir7;\r\n" + //
 			"                              if(lightExtra7.x > 0.5) {\r\n" + //
@@ -199,9 +202,9 @@ public class MdxShaders {
 			"                              }\r\n" + //
 			"                              if( u_lightTextureHeight > 7.5 ) {\r\n" + //
 			"                                  float rowPos = (7.5) / u_lightTextureHeight;\r\n" + //
-			"                                  vec4 lightPosition8 = texture2D(u_lightTexture, vec2(0.125, rowPos));\r\n"
+			"                                  vec4 lightPosition8 = texture(u_lightTexture, vec2(0.125, rowPos));\r\n"
 			+ //
-			"                                  vec4 lightExtra8 = texture2D(u_lightTexture, vec2(0.375, rowPos));\r\n" + //
+			"                                  vec4 lightExtra8 = texture(u_lightTexture, vec2(0.375, rowPos));\r\n" + //
 			"                                  vec3 u_lightPos8 = mv * lightPosition8.xyz;\r\n" + //
 			"                                  vec3 lightDir8;\r\n" + //
 			"                                  if(lightExtra8.x > 0.5) {\r\n" + //
@@ -256,9 +259,9 @@ public class MdxShaders {
 			"    }";
 
 	public static final String fsHd() {
-		return "#version 120\r\n" + //
+		return "#version 330 core\r\n" + //
 				"\r\n" + //
-				"\r\n" + //
+				"out vec4 fragColor;\r\n" + //
 				"\r\n" + //
 				"uniform sampler2D u_lightTexture;\r\n" + //
 				"uniform float u_lightTextureHeight;\r\n" + //
@@ -273,24 +276,24 @@ public class MdxShaders {
 				"// uniform sampler2D u_lutMap;\r\n" + //
 				"// uniform sampler2D u_envDiffuseMap;\r\n" + //
 				"// uniform sampler2D u_envSpecularMap;\r\n" + //
-				"varying vec2 v_uv;\r\n" + //
-				"varying float v_layerAlpha;\r\n" + //
-				"varying vec4 v_lightDir;\r\n" + //
-				"varying vec4 v_lightDir2;\r\n" + //
-				"varying vec4 v_lightDir3;\r\n" + //
-				"varying vec4 v_lightDir4;\r\n" + //
-				"varying vec4 v_lightDir5;\r\n" + //
-				"varying vec4 v_lightDir6;\r\n" + //
-				"varying vec4 v_lightDir7;\r\n" + //
-				"varying vec4 v_lightDir8;\r\n" + //
-				"varying vec3 v_eyeVec;\r\n" + //
-				"varying vec3 v_normal;\r\n" + //
-				"// varying vec3 v_lightDirWorld;\r\n" + //
+				"in vec2 v_uv;\r\n" + //
+				"in float v_layerAlpha;\r\n" + //
+				"in vec4 v_lightDir;\r\n" + //
+				"in vec4 v_lightDir2;\r\n" + //
+				"in vec4 v_lightDir3;\r\n" + //
+				"in vec4 v_lightDir4;\r\n" + //
+				"in vec4 v_lightDir5;\r\n" + //
+				"in vec4 v_lightDir6;\r\n" + //
+				"in vec4 v_lightDir7;\r\n" + //
+				"in vec4 v_lightDir8;\r\n" + //
+				"in vec3 v_eyeVec;\r\n" + //
+				"in vec3 v_normal;\r\n" + //
+				"// in vec3 v_lightDirWorld;\r\n" + //
 				"#if defined(ONLY_TANGENTS)\r\n" + //
-				"varying vec3 v_tangent;\r\n" + //
+				"in vec3 v_tangent;\r\n" + //
 				"#endif\r\n" + //
 				"vec3 decodeNormal() {\r\n" + //
-				"  vec2 xy = texture2D(u_normalsMap, v_uv).yx * 2.0 - 1.0;\r\n" + //
+				"  vec2 xy = texture(u_normalsMap, v_uv).yx * 2.0 - 1.0;\r\n" + //
 				"  \r\n" + //
 				"  return vec3(xy, sqrt(1.0 - dot(xy, xy)));\r\n" + //
 				"}\r\n" + //
@@ -302,7 +305,7 @@ public class MdxShaders {
 				"  return uv;\r\n" + //
 				"}\r\n" + //
 				"vec4 getDiffuseColor() {\r\n" + //
-				"  vec4 color = texture2D(u_diffuseMap, v_uv);\r\n" + //
+				"  vec4 color = texture(u_diffuseMap, v_uv);\r\n" + //
 				"  // 1bit Alpha\r\n" + //
 				"  if (u_filterMode == 1.0 && color.a < 0.75) {\r\n" + //
 				"    discard;\r\n" + //
@@ -310,16 +313,16 @@ public class MdxShaders {
 				"  return color;\r\n" + //
 				"}\r\n" + //
 				"vec4 getOrmColor() {\r\n" + //
-				"  return texture2D(u_ormMap, v_uv);\r\n" + //
+				"  return texture(u_ormMap, v_uv);\r\n" + //
 				"}\r\n" + //
 				"vec3 getEmissiveColor() {\r\n" + //
-				"  return texture2D(u_emissiveMap, v_uv).rgb;\r\n" + //
+				"  return texture(u_emissiveMap, v_uv).rgb;\r\n" + //
 				"}\r\n" + //
 				"vec3 getTeamColor() {\r\n" + //
-				"  return texture2D(u_teamColorMap, v_uv).rgb;\r\n" + //
+				"  return texture(u_teamColorMap, v_uv).rgb;\r\n" + //
 				"}\r\n" + //
 				"vec3 getEnvironmentMapColor() {\r\n" + //
-				"  return texture2D(u_environmentMap, v_uv).rgb;\r\n" + //
+				"  return texture(u_environmentMap, v_uv).rgb;\r\n" + //
 				"}\r\n" + //
 				"// const float PI = 3.14159265359;\r\n" + //
 				"// const float RECIPROCAL_PI = 0.31830988618;\r\n" + //
@@ -457,35 +460,35 @@ public class MdxShaders {
 				"  if (tcFactor > 0.1) {\r\n" + //
 				"    baseColor.rgb *= tc * tcFactor;\r\n" + //
 				"  }\r\n" + //
-				"  gl_FragColor = baseColor;\r\n" + //
+				"  fragColor = baseColor;\r\n" + //
 				"}\r\n" + //
 				"void onlyNormalMap() {\r\n" + //
-				"  gl_FragColor = vec4(decodeNormal(), 1.0);\r\n" + //
+				"  fragColor = vec4(decodeNormal(), 1.0);\r\n" + //
 				"}\r\n" + //
 				"void onlyOcclusion() {\r\n" + //
-				"  gl_FragColor = vec4(getOrmColor().rrr, 1.0);\r\n" + //
+				"  fragColor = vec4(getOrmColor().rrr, 1.0);\r\n" + //
 				"}\r\n" + //
 				"void onlyRoughness() {\r\n" + //
-				"  gl_FragColor = vec4(getOrmColor().ggg, 1.0);\r\n" + //
+				"  fragColor = vec4(getOrmColor().ggg, 1.0);\r\n" + //
 				"}\r\n" + //
 				"void onlyMetallic() {\r\n" + //
-				"  gl_FragColor = vec4(getOrmColor().bbb, 1.0);\r\n" + //
+				"  fragColor = vec4(getOrmColor().bbb, 1.0);\r\n" + //
 				"}\r\n" + //
 				"void onlyTeamColorFactor() {\r\n" + //
-				"  gl_FragColor = vec4(getOrmColor().aaa, 1.0);\r\n" + //
+				"  fragColor = vec4(getOrmColor().aaa, 1.0);\r\n" + //
 				"}\r\n" + //
 				"void onlyEmissiveMap() {\r\n" + //
-				"  gl_FragColor = vec4(getEmissiveColor(), 1.0);\r\n" + //
+				"  fragColor = vec4(getEmissiveColor(), 1.0);\r\n" + //
 				"}\r\n" + //
 				"void onlyTexCoords() {\r\n" + //
-				"  gl_FragColor = vec4(v_uv, 0.0, 1.0);\r\n" + //
+				"  fragColor = vec4(v_uv, 0.0, 1.0);\r\n" + //
 				"}\r\n" + //
 				"void onlyNormals() {\r\n" + //
-				"  gl_FragColor = vec4(v_normal, 1.0);\r\n" + //
+				"  fragColor = vec4(v_normal, 1.0);\r\n" + //
 				"}\r\n" + //
 				"#if defined(ONLY_TANGENTS)\r\n" + //
 				"void onlyTangents() {\r\n" + //
-				"  gl_FragColor = vec4(v_tangent, 1.0);\r\n" + //
+				"  fragColor = vec4(v_tangent, 1.0);\r\n" + //
 				"}\r\n" + //
 				"#endif\r\n" + //
 				"void applyLight(vec4 thisLightColor, vec4 thisLightDir, vec3 normal, vec3 baseColor, vec3 tc, vec4 ormTexel, vec3 reflectionsTexel, float tcFactor, inout vec3 color, inout vec3 lambertFactorSum) {\r\n"
@@ -517,42 +520,42 @@ public class MdxShaders {
 				"  vec3 color = vec3(0.0);\r\n" + //
 				"  \r\n" + //
 				"  float rowPos = (0.5) / u_lightTextureHeight;\r\n" + //
-				"  vec4 lightColor = texture2D(u_lightTexture, vec2(0.625, rowPos));\r\n" + //
+				"  vec4 lightColor = texture(u_lightTexture, vec2(0.625, rowPos));\r\n" + //
 				"  applyLight(lightColor, v_lightDir, normal, baseColor.rgb, tc, orm, environmentMapColor, tcFactor, color, lambertFactorSum);\r\n"
 				+ //
 				"  if( u_lightTextureHeight > 1.5 ) {\r\n" + //
 				"    rowPos = (1.5) / u_lightTextureHeight;\r\n" + //
-				"    lightColor = texture2D(u_lightTexture, vec2(0.625, rowPos));\r\n" + //
+				"    lightColor = texture(u_lightTexture, vec2(0.625, rowPos));\r\n" + //
 				"    applyLight(lightColor, v_lightDir2, normal, baseColor.rgb, tc, orm, environmentMapColor, tcFactor, color, lambertFactorSum);\r\n"
 				+ //
 				"    if( u_lightTextureHeight > 2.5 ) {\r\n" + //
 				"      rowPos = (2.5) / u_lightTextureHeight;\r\n" + //
-				"      lightColor = texture2D(u_lightTexture, vec2(0.625, rowPos));\r\n" + //
+				"      lightColor = texture(u_lightTexture, vec2(0.625, rowPos));\r\n" + //
 				"      applyLight(lightColor, v_lightDir3, normal, baseColor.rgb, tc, orm, environmentMapColor, tcFactor, color, lambertFactorSum);\r\n"
 				+ //
 				"      if( u_lightTextureHeight > 3.5 ) {\r\n" + //
 				"        rowPos = (3.5) / u_lightTextureHeight;\r\n" + //
-				"        lightColor = texture2D(u_lightTexture, vec2(0.625, rowPos));\r\n" + //
+				"        lightColor = texture(u_lightTexture, vec2(0.625, rowPos));\r\n" + //
 				"        applyLight(lightColor, v_lightDir4, normal, baseColor.rgb, tc, orm, environmentMapColor, tcFactor, color, lambertFactorSum);\r\n"
 				+ //
 				"        if( u_lightTextureHeight > 4.5 ) {\r\n" + //
 				"          rowPos = (4.5) / u_lightTextureHeight;\r\n" + //
-				"          lightColor = texture2D(u_lightTexture, vec2(0.625, rowPos));\r\n" + //
+				"          lightColor = texture(u_lightTexture, vec2(0.625, rowPos));\r\n" + //
 				"          applyLight(lightColor, v_lightDir5, normal, baseColor.rgb, tc, orm, environmentMapColor, tcFactor, color, lambertFactorSum);\r\n"
 				+ //
 				"          if( u_lightTextureHeight > 5.5 ) {\r\n" + //
 				"            rowPos = (5.5) / u_lightTextureHeight;\r\n" + //
-				"            lightColor = texture2D(u_lightTexture, vec2(0.625, rowPos));\r\n" + //
+				"            lightColor = texture(u_lightTexture, vec2(0.625, rowPos));\r\n" + //
 				"            applyLight(lightColor, v_lightDir6, normal, baseColor.rgb, tc, orm, environmentMapColor, tcFactor, color, lambertFactorSum);\r\n"
 				+ //
 				"            if( u_lightTextureHeight > 6.5 ) {\r\n" + //
 				"              rowPos = (6.5) / u_lightTextureHeight;\r\n" + //
-				"              lightColor = texture2D(u_lightTexture, vec2(0.625, rowPos));\r\n" + //
+				"              lightColor = texture(u_lightTexture, vec2(0.625, rowPos));\r\n" + //
 				"              applyLight(lightColor, v_lightDir7, normal, baseColor.rgb, tc, orm, environmentMapColor, tcFactor, color, lambertFactorSum);\r\n"
 				+ //
 				"              if( u_lightTextureHeight > 7.5 ) {\r\n" + //
 				"                rowPos = (7.5) / u_lightTextureHeight;\r\n" + //
-				"                lightColor = texture2D(u_lightTexture, vec2(0.625, rowPos));\r\n" + //
+				"                lightColor = texture(u_lightTexture, vec2(0.625, rowPos));\r\n" + //
 				"                applyLight(lightColor, v_lightDir8, normal, baseColor.rgb, tc, orm, environmentMapColor, tcFactor, color, lambertFactorSum);\r\n"
 				+ //
 				"              }\r\n" + //
@@ -568,7 +571,7 @@ public class MdxShaders {
 						"    }\r\n" : "\r\n")
 				+ //
 				"  color = clamp(color, 0.0, 1.0) + diffuse * lambertFactorSum + emissive;\r\n" + //
-				"  gl_FragColor = vec4(color, baseColor.a);\r\n" + //
+				"  fragColor = vec4(color, baseColor.a);\r\n" + //
 				"}\r\n" + //
 				"void main() {\r\n" + //
 				"  #if defined(ONLY_DIFFUSE)\r\n" + //
