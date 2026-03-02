@@ -682,6 +682,11 @@ public class MdxComplexInstance extends ModelInstance {
 		for (final LightInstance light : this.lights) {
 			light.remove(scene);
 		}
+	}
+
+	@Override
+	protected void onInstanceRemoved(final Scene scene) {
+		removeLights(scene);
 		for (final ParticleEmitter particleEmitter : this.particleEmitters) {
 			particleEmitter.onRemove();
 		}

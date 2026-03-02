@@ -199,4 +199,43 @@ class MdxShadersTest {
 		assertFalse(MdxShaders.vsHd.contains("#version 450"),
 				"vsHd must not contain #version 450");
 	}
+
+	// ---------------------------------------------------------------
+	// Phase C pre-test: shader correctness fixes
+	// ---------------------------------------------------------------
+
+	/**
+	 * The first light in vsHd must be wrapped in an 'if (u_lightTextureHeight >
+	 * 0.5)' guard so that an empty light texture does not cause a floating-point
+	 * divide-by-zero (0.5 / 0.0 = +Infinity).
+	 */
+	@Test
+	void vsHd_firstLightIsGuardedByLightCount() {
+		assertTrue(MdxShaders.vsHd.contains("if (u_lightTextureHeight > 0.5)"),
+				"vsHd must guard the first light read with 'if (u_lightTextureHeight > 0.5)' "
+						+ "to prevent divide-by-zero when no lights are present");
+	}
+
+	/**
+	 * The default value written to v_lightDir when no lights are present must be
+	 * a safe zero vector, not undefined.
+	 */
+	@Test
+	void vsHd_defaultsVLightDirToZero() {
+		assertTrue(MdxShaders.vsHd.contains("v_lightDir = vec4(0.0)"),
+				"vsHd must initialise v_lightDir to vec4(0.0) before any conditional light read");
+	}
+
+	/**
+	 * The non-SKIN vertex-group path in Shaders.transforms must initialise
+	 * {@code mat4 bone} to zero. GLSL 3.30 core does not zero-initialise local
+	 * variables, so the original bare declaration {@code mat4 bone;} accumulated
+	 * matrix contributions onto undefined memory.
+	 */
+	@Test
+	void transforms_nonSkinPath_boneMatrixInitialised() {
+		assertTrue(Shaders.transforms.contains("mat4 bone = mat4(0.0)"),
+				"The non-SKIN getVertexGroupMatrix() must initialise bone with mat4(0.0), "
+						+ "not a bare mat4 declaration, to avoid undefined behaviour in GLSL 3.30 core");
+	}
 }
