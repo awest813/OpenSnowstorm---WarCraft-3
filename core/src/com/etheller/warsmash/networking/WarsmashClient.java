@@ -301,7 +301,9 @@ public class WarsmashClient implements ServerToClientListener, GameTurnManager {
 		// will let the middle layer UDP system know to re-request any lost packets
 		// based
 		// on the heartbeat seq no. But at app layer, here, we can ignore it.
-		System.out.println("got heartbeat() from server");
+		if (WarsmashConstants.VERBOSE_LOGGING) {
+			System.out.println("got heartbeat() from server");
+		}
 	}
 
 	@Override
