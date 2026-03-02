@@ -1,27 +1,52 @@
-# Warsmash: Mod Engine
-This is a Warcraft III emulator made using LibGDX game engine. For obvious reasons, the Warsmash project does not include Warcraft III assets. Instead, in order to run the Warcraft III emulator you need to purchase a valid copy of Warcraft III from Activision Blizzard and then configure Warsmash to use those assets.
+# Warsmash: The OpenMW for Warcraft III
+
+**Warsmash** is a free and open-source reimplementation of the Warcraft III game engine — the same goal that [OpenMW](https://openmw.org/) pursues for Morrowind. Just as OpenMW lets anyone run Morrowind mods, maps, and content on a modern, community-maintained engine, Warsmash aims to let anyone run Warcraft III maps and mods on a portable, hackable, AGPL-licensed engine that the modding community can improve forever.
+
+Warsmash does not include Warcraft III assets. You must own a legal copy of Warcraft III and point Warsmash at it via the `warsmash.ini` configuration file.
+
+---
+
+## Vision
+
+Warcraft III has one of the richest modding histories of any RTS. Thousands of maps, custom campaigns, and entire game genres (tower defense, MOBA, RPG, survival) were born in the Warcraft III World Editor. Activision's stewardship of Warcraft III Reforged fractured the community and left modders on an unstable, closed platform.
+
+Warsmash exists to change that. The long-term goal is full feature parity with Warcraft III: Frozen Throne and Warcraft III: Reforged as an open engine that:
+
+- **Runs any WC3 map or mod** without requiring the original client
+- **Is portable** — Java + LibGDX targets Linux, Windows, and macOS from one codebase
+- **Is hackable** — every part of the rendering, simulation, and scripting pipeline is readable, modifiable, and testable
+- **Performs well** — per-frame allocations, light-system leaks, and shader inefficiencies are treated as bugs
+- **Documents everything** — compatibility matrix, profiling workflow, architecture decisions
+
+This is the same promise OpenMW made for Morrowind in 2008. We make it for Warcraft III.
+
+---
 
 ### In the News
 Some news websites and social media claimed that Warsmash was taken down in 2022 via a Cease and Desist letter from Activision Blizzard, but that did not happen. The confusion started from a parody video on YouTube that was almost immediately taken down. If you have more concerns on that topic, feel free to join the Warsmash discord server and ask (linked below).
 
-The spread of the unverified false rumor of Warsmash's takedown vastly exceeded the rate of spread of any legitimate technology discussion, and so because of how the modern attention economy works there is not any digital megaphone through which this project and its author(s) can tell their true story to set things right. If you want to support Warsmash, do not hate Activision. Instead, love the Warcraft III modding. It really is probably that simple.
 ## Gameplay Example
 [![GAMEPLAY VIDEO](http://img.youtube.com/vi/EO-FDeQhFWc/0.jpg)](https://www.youtube.com/watch?v=EO-FDeQhFWc)
 
 ## Discord
 https://discord.com/invite/ucjftZ7x7H
 
+---
+
 ## Project Status & Roadmap
 
-Warsmash is undergoing a structured modernization effort. Progress is tracked in
+Warsmash is undergoing a structured modernization effort toward full OpenMW-equivalent coverage. Progress is tracked in
 [`docs/ENGINE_MODERNIZATION_ANALYSIS.md`](docs/ENGINE_MODERNIZATION_ANALYSIS.md)
 and [`CHANGELOG.md`](CHANGELOG.md).
 
 | Phase | Focus | Status |
 |-------|-------|--------|
 | **A** | Diagnostics, launcher QoL, CI, docs | **Complete** |
-| **B** | Light-system leak fix, GLSL shader normalization, parser consolidation design | **Next** |
-| **C** | Parser unification, server hardening, async asset pipeline | Planned |
+| **B** | Light-system leak fix, GLSL shader normalization, parser consolidation design | **Complete** |
+| **C** | Per-frame allocation reduction, light-data caching, simulation budget tracking | **Complete** |
+| **D** | Parser unification, async asset pipeline, server hardening | **In Progress** |
+| **E** | Full JASS/Lua scripting coverage, map-format support to 1.32, networking | Planned |
+| **F** | Community modding layer (custom assets, asset overrides, mod manager) | Planned |
 
 ### Phase A (Complete)
 
@@ -30,24 +55,49 @@ launcher flags (`-help`, `-window`, `-fps`, `-vsync/-novsync`, `-msaa`,
 `-validate`, `-ini`, `-loadfile`, `-nolog`), CI for Linux/Windows on Java 17/21,
 a Gradle upgrade, `CONTRIBUTING.md`, and `docs/COMPATIBILITY.md`.
 
-### Phase B (Next)
+### Phase B (Complete)
 
-Phase B targets three areas of technical debt:
+Phase B fixed three areas of technical debt:
 
-1. **Light-system memory leak** — orphaned `LightInstance` objects accumulate
-   when culled model instances are pruned from the scene without calling
-   `removeLights()`. This causes frame-time drift on long sessions.
-2. **GLSL shader version mismatch** — MDX shaders use `#version 120`, terrain
-   shaders use `#version 330 core`, and test shaders use `#version 450 core`.
-   Phase B will normalise everything to `#version 330 core` to match the GL 3.3
-   requirement.
-3. **Parser consolidation design** — the codebase has two SLK parsers
-   (`SlkFile` and `DataTable.readSLK()`) and two INI parsers (`IniFile` and
-   `DataTable.readTXT()`). Phase B will produce a design for unifying them;
-   Phase C will implement it.
+1. **Light-system memory leak** — orphaned `LightInstance` objects accumulated
+   when culled model instances were pruned from the scene. Fixed: `Scene.update()`
+   now calls `removeLights()` before pruning.
+2. **GLSL shader version mismatch** — normalized everything to `#version 330 core`.
+3. **Parser consolidation design** — design doc for unifying the duplicate SLK/INI
+   parser stacks (`docs/PARSER_CONSOLIDATION_DESIGN.md`).
 
-See the [full roadmap](docs/ENGINE_MODERNIZATION_ANALYSIS.md) for details.
+### Phase C (Complete)
 
+Phase C targeted the render hot path to reduce per-frame CPU cost:
+
+1. **Light-data caching** — `LightInstance` now computes its packed 16-float GPU
+   block at most once per frame via a generation counter. The unit and terrain
+   light textures both read from the same cache, halving keyframe-sampler calls.
+2. **Single-buffer light packing** — `W3xSceneWorldLightManager` maintains
+   separate `unitLightBuffer` and `terrainLightBuffer` objects and fills both
+   in one pass, eliminating the shared-buffer reuse that forced sequential uploads.
+3. **Bone texture bulk copy** — `MdxComplexInstance.updateBoneTexture()` replaced
+   16 absolute-indexed `FloatBuffer.put(int, float)` calls per bone with a single
+   `put(float[], 0, 16)` that maps to a native `memcpy`, cutting JNI overhead for
+   all skinned models.
+4. **Frame-pacing p95/p99** — `FramePacingTracker` now reports 95th and 99th
+   percentile frame times in addition to average and max, making intermittent
+   frame spikes visible without a profiler.
+5. **`ObjectPool<T>`** — generic object pool utility (stack-backed, fixed capacity)
+   for reducing GC pressure in allocation-heavy hot paths.
+6. **`SimulationBudgetTracker`** — measures simulation-tick wall time and reports
+   budget overruns to stdout, giving a per-session view of simulation cost.
+
+### Phase D (In Progress)
+
+Phase D implements the Phase B parser-consolidation design and hardens the server
+and asset pipeline. Parser migration is now wired through the canonical
+`DataTable` backend for runtime `MappedData` callers, and `ObjectPool<T>` is now
+used in simulation allocation hotspots. The remaining major Phase D item is
+threaded async asset/map loading with progress feedback. See the
+[full roadmap](docs/ENGINE_MODERNIZATION_ANALYSIS.md).
+
+---
 
 ## Before you Begin: INI File
 Regardless of whether you want to edit Warsmash from an IDE, run it from command line, or build a binary release, in any case you will run into the problem of the `warsmash.ini` config file. I maintained the Retera Model Studio project since 2012, and in particular I was constantly updating my code in parallel with Activision Blizzard's Warcraft III leading up to the release of Reforged. The decisions their Classics Games Team made in those years substantially impacted and split apart the Warcraft III modding community. Rather than Reforged releasing all at once and breaking everything, at first from 2017 - 2019 there were a series of patches that dramatically altered and restructured the Warcraft III game, sometimes to an entirely new structure _in each patch_, all while **not using the Reforged label**. The first patch in that patch cycle was the Patch 1.27, followed by many others. Originally, in 2017, the fundamental Warcraft III asset loading utilities that I wrote for Retera Model Studio (that I now also use on Warsmash!) were using code that I had written to automatically detect the location of the "one true Warcraft III installation" on the user computer from the Windows registry.
@@ -147,16 +197,16 @@ So, when I copied the asset resolution from that system into Warsmash and expand
 ## Background and History
 My current codebase is running on Java 17 (but only using Java 8 syntax) and the LibGDX game engine coupled with the port of the mdx-m3-viewer's engine. It contains:
 - A transcription of only the relevant portions of this WebGL viewer necessary to load MDX models and W3X map data, and to display the models https://github.com/flowtsohg/mdx-m3-viewer
-  - I changed several things about the viewer as of the time of writing, such as a naive implementation of Light objects that will support the Day/Night cycle of the game as well as support point lights for torches and other game objects, however there is a memory leak in my Light system so that it will cause progressively increasing lag on slower computers
+  - I changed several things about the viewer as of the time of writing, such as a naive implementation of Light objects that will support the Day/Night cycle of the game as well as support point lights for torches and other game objects. The memory leak that originally existed in the light system has been fixed as of Phase B.
   - After the development of this project began, there was code sharing between the MDLX parser in this repo and the one in the "conflictfixes" branch of ReteraModelStudio. Other users (tw1lac and flowtsohg) made contributions to the MDLX parser while it was sitting in that repo, and then I copied it back to this repo, so at this point this repo is including a few changes that were made by those users, but in an undocumented way. Hopefully I will clean this up and get the MDLX parser split from both of these projects off to its own repo. However, credits and thanks to them for their changes to that code (I think it was mostly flowtsohg)! My lack of the git history for those changes in this repo is not an attempt to remove citation/credits for their work, but is rather the result of laziness.
 - A transcription of the HiveWE terrain rendering systems from this project, then modified to interface nicely with the ported viewers MDX rendering https://github.com/stijnherfst/HiveWE
   - I changed the orientation of the cliff meshes. Mine are rotated 90 degrees from HiveWE in order to more accurately reproduce the likeness of what we observe in the Warcraft III World Editor. At times, I also tinkered with the Ramp logic and at this point mine is not 1:1 the same as HiveWE, but there are still many issues with mine.
-- The shaders GLSL code from both of the above projects, originally copied in almost their exact form but with a few necessary changes. As a result, there are still bizarre disparities in the GL Shader Language version used for different things within this same project
+- The shaders GLSL code from both of the above projects, originally copied in almost their exact form but with a few necessary changes. As of Phase B all active shaders use `#version 330 core`, matching the OpenGL 3.3 requirement set at startup.
 - Graphical Enhancements to viewer from this fork of it: https://github.com/d07RiV/wc3data
 (By copying the above repo, I was able to add support for water waves, shadow on the edge of the map, shadow under buildings, UberSplat under buildings, the little shadow picture under units, and some earlier drafts of the unit selection mouse intersect code that I mostly replaced at this point. I had to heavily modify the Splat logic to make them mobile as this repo at the time of copying was only able to create the shadow in a static location and upload the single location to the graphics card. Theoretically I have found cases for Ramps in map terrain that are handled properly by this repo and not by HiveWE terrain rendering nor by my copy of it, but I never prioritized investigating those ramp problems further)
 - I use Java-based blp-iio-plugin so I didnt need to bother porting the BLP parser from the model viewer BUT this one I am using has some issue on campaign art textures where the alpha isnt loaded, so NightElfCampaign3D_exp for example has render artifacts around palm leaves https://github.com/DrSuperGood/blp-iio-plugin
 - I use an MPQ parser by the same guy as the above, DrSuperGood, but he didnt put it on github so I just included the sourcecode in the repo for now
-- For loading Unit Data, I have two SLK parsers and two INI parsers which is gross. One set is copied from ReteraModelStudio and the other is transcribed from viewer. I am mostly using the ReteraModelStudio one where possible because I wrote it not as a copy of anything else from my own intuition years ago and the API interfaces better with my high level unit data API that I copied from ReteraModelStudio (https://github.com/Retera/ReterasModelStudio)
+- For loading Unit Data, I have two SLK parsers and two INI parsers which is gross. One set is copied from ReteraModelStudio and the other is transcribed from viewer. I am mostly using the ReteraModelStudio one where possible because I wrote it not as a copy of anything else from my own intuition years ago and the API interfaces better with my high level unit data API that I copied from ReteraModelStudio (https://github.com/Retera/ReterasModelStudio). Phase D will unify these.
 - For loading map changeset unit data (Object Editor) I am using a transcription of the parsers written by PitzerMike for Grimoire/Widgetizer. Somebody linked me some ancient pastebin on the Hive at some point that included this C++ code so I wrote a Java port in my model editor repo and copied it to this repo and cleaned it up a bit
 - For loading TGA image files such as building pathing, I use the same TGA parser included in ReteraModelStudio codebase. It was written by OgerLord long ago https://github.com/OgerLord/WcDataLibrary/blob/master/src/de/wc3data/image/TgaFile.java
 

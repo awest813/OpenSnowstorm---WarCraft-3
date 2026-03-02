@@ -33,9 +33,12 @@ public class GamingNetworkServerBusinessLogicImpl {
 	private final GamingNetworkServerTracker tracker;
 	private final Map<Integer, SessionImpl> userIdToCurrentSession = new HashMap<>();
 	private final Map<Long, SessionImpl> tokenToSession;
+	/** Reverse map for O(1) disconnection lookup — avoids O(n) scan over all sessions. */
+	private final Map<GamingNetworkServerToClientWriter, SessionImpl> writerToSession = new HashMap<>();
 	private final Map<String, ChatChannel> nameLowerCaseToChannel = new HashMap<>();
 	private final Map<String, HostedGame> nameLowerCaseToGame = new HashMap<>();
 	private final Random random;
+	private final LoginRateLimiter rateLimiter = new LoginRateLimiter();
 
 	public GamingNetworkServerBusinessLogicImpl(final Set<AcceptedGameListKey> acceptedGames,
 			final UserManager userManager, final String welcomeMessage, GamingNetworkServerTracker tracker) {
@@ -48,13 +51,7 @@ public class GamingNetworkServerBusinessLogicImpl {
 	}
 
 	public void disconnected(GamingNetworkServerToClientWriter writer) {
-		// TODO this is not efficient, and may make DDOS hit us badly
-		SessionImpl sessionToKill = null;
-		for (final SessionImpl session : this.tokenToSession.values()) {
-			if (session.mostRecentConnectionContext == writer) {
-				sessionToKill = session;
-			}
-		}
+		final SessionImpl sessionToKill = this.writerToSession.get(writer);
 		if (sessionToKill != null) {
 			killSession(sessionToKill);
 			tracker.disconnectedSession(writer.getAddressString(), sessionToKill.getUser());
@@ -76,22 +73,36 @@ public class GamingNetworkServerBusinessLogicImpl {
 
 	public void createAccount(final String username, final char[] passwordHash,
 			final GamingNetworkClientConnectionContext connectionContext) {
+		final String address = connectionContext.getAddressString();
+		if (this.rateLimiter.isBlocked(address)) {
+			connectionContext.accountCreationFailed(AccountCreationFailureReason.USERNAME_ALREADY_EXISTS);
+			tracker.accountCreationFailed(address, username);
+			return;
+		}
 		final User user = this.userManager.createUser(username, passwordHash);
 		if (user == null) {
+			this.rateLimiter.recordFailure(address);
 			connectionContext.accountCreationFailed(AccountCreationFailureReason.USERNAME_ALREADY_EXISTS);
-			tracker.accountCreationFailed(connectionContext.getAddressString(), username);
+			tracker.accountCreationFailed(address, username);
 		}
 		else {
 			connectionContext.accountCreationOk();
-			tracker.accountCreatedOk(connectionContext.getAddressString(), username);
+			tracker.accountCreatedOk(address, username);
 		}
 	}
 
 	public void login(final String username, final char[] passwordHash,
 			final GamingNetworkClientConnectionContext connectionContext) {
+		final String address = connectionContext.getAddressString();
+		if (this.rateLimiter.isBlocked(address)) {
+			connectionContext.loginFailed(LoginFailureReason.INVALID_CREDENTIALS);
+			tracker.loginFailed(address, LoginFailureReason.INVALID_CREDENTIALS);
+			return;
+		}
 		final User user = this.userManager.getUserByName(username);
 		if (user != null) {
 			if (PasswordAuthentication.authenticate(passwordHash, user.getPasswordHash())) {
+				this.rateLimiter.recordSuccess(address);
 				final SessionImpl currentSession = this.userIdToCurrentSession.get(user.getId());
 				if (currentSession != null) {
 					killSession(currentSession);
@@ -100,17 +111,22 @@ public class GamingNetworkServerBusinessLogicImpl {
 				final SessionImpl session = new SessionImpl(user, timestamp, this.random.nextLong(), connectionContext);
 				this.tokenToSession.put(session.getToken(), session);
 				this.userIdToCurrentSession.put(user.getId(), session);
+				if (connectionContext instanceof GamingNetworkServerToClientWriter) {
+					this.writerToSession.put((GamingNetworkServerToClientWriter) connectionContext, session);
+				}
 				connectionContext.loginOk(session.getToken(), GamingNetworkServerBusinessLogicImpl.this.welcomeMessage);
-				tracker.loginOk(connectionContext.getAddressString(), username);
+				tracker.loginOk(address, username);
 			}
 			else {
+				this.rateLimiter.recordFailure(address);
 				connectionContext.loginFailed(LoginFailureReason.INVALID_CREDENTIALS);
-				tracker.loginFailed(connectionContext.getAddressString(), LoginFailureReason.INVALID_CREDENTIALS);
+				tracker.loginFailed(address, LoginFailureReason.INVALID_CREDENTIALS);
 			}
 		}
 		else {
+			this.rateLimiter.recordFailure(address);
 			connectionContext.loginFailed(LoginFailureReason.UNKNOWN_USER);
-			tracker.loginFailed(connectionContext.getAddressString(), LoginFailureReason.UNKNOWN_USER);
+			tracker.loginFailed(address, LoginFailureReason.UNKNOWN_USER);
 		}
 	}
 
@@ -119,6 +135,9 @@ public class GamingNetworkServerBusinessLogicImpl {
 		removeSessionFromCurrentGame(currentSession);
 		this.tokenToSession.remove(currentSession.getToken());
 		this.userIdToCurrentSession.remove(currentSession.getUser().getId());
+		if (currentSession.mostRecentConnectionContext instanceof GamingNetworkServerToClientWriter) {
+			this.writerToSession.remove((GamingNetworkServerToClientWriter) currentSession.mostRecentConnectionContext);
+		}
 		try {
 			String addressString = currentSession.mostRecentConnectionContext.getAddressString();
 			currentSession.mostRecentConnectionContext.disconnected();

@@ -26,6 +26,7 @@ import com.etheller.interpreter.ast.scope.variableevent.VariableEvent;
 import com.etheller.warsmash.parsers.jass.scope.CommonTriggerExecutionScope;
 import com.etheller.warsmash.units.DataTable;
 import com.etheller.warsmash.units.ObjectData;
+import com.etheller.warsmash.util.ObjectPool;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.util.WarsmashConstants;
 import com.etheller.warsmash.viewer5.handlers.w3x.AnimationTokens.PrimaryTag;
@@ -135,6 +136,7 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	private boolean fogEnabled = true;
 	private final List<Runnable> postUpdateCallbacks = new ArrayList<>();
 	private final List<Runnable> runningPostUpdateCallbacks = new ArrayList<>();
+	private final ObjectPool<Set<CTimer>> timerSetPool = new ObjectPool<>(2, HashSet::new);
 
 	public CSimulation(final War3MapConfig config, final int mapVersion, final DataTable miscData,
 			final ObjectData parsedUnitData, final ObjectData parsedItemData, final ObjectData parsedDestructableData,
@@ -573,11 +575,18 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 			internalUnregisterTimer(timer);
 		}
 		this.removedTimers.clear();
-		final Set<CTimer> timers = new HashSet<>();
-		for (final CTimer timer : this.activeTimers) {
-			if (!timers.add(timer)) {
-				throw new IllegalStateException("Duplicate timer add: " + timer);
+		final Set<CTimer> timers = this.timerSetPool.acquire();
+		timers.clear();
+		try {
+			for (final CTimer timer : this.activeTimers) {
+				if (!timers.add(timer)) {
+					throw new IllegalStateException("Duplicate timer add: " + timer);
+				}
 			}
+		}
+		finally {
+			timers.clear();
+			this.timerSetPool.release(timers);
 		}
 		while (!this.activeTimers.isEmpty() && (this.activeTimers.peek().getEngineFireTick() <= this.gameTurnTick)) {
 			this.activeTimers.pop().fire(this);

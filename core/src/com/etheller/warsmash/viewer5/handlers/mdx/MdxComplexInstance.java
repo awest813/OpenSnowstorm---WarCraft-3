@@ -514,26 +514,16 @@ public class MdxComplexInstance extends ModelInstance {
 
 	public void updateBoneTexture() {
 		if (this.boneTexture != null) {
+			// LibGDX stores Matrix4.val in column-major order where the constants
+			// M00=0, M10=1, M20=2, M30=3, M01=4, ... M33=15 are contiguous indices 0-15.
+			// The previous code wrote them one-by-one as absolute indexed puts, which
+			// is equivalent to putting val[0..15] in order. Replaced with a single
+			// bulk put per bone so the JVM can use native memcpy instead of 16 JNI calls.
 			this.worldMatricesCopyHeap.clear();
 			for (int i = 0, l = this.worldMatrices.length; i < l; i++) {
-				final Matrix4 worldMatrix = this.worldMatrices[i];
-				this.worldMatricesCopyHeap.put((i * 16) + 0, worldMatrix.val[Matrix4.M00]);
-				this.worldMatricesCopyHeap.put((i * 16) + 1, worldMatrix.val[Matrix4.M10]);
-				this.worldMatricesCopyHeap.put((i * 16) + 2, worldMatrix.val[Matrix4.M20]);
-				this.worldMatricesCopyHeap.put((i * 16) + 3, worldMatrix.val[Matrix4.M30]);
-				this.worldMatricesCopyHeap.put((i * 16) + 4, worldMatrix.val[Matrix4.M01]);
-				this.worldMatricesCopyHeap.put((i * 16) + 5, worldMatrix.val[Matrix4.M11]);
-				this.worldMatricesCopyHeap.put((i * 16) + 6, worldMatrix.val[Matrix4.M21]);
-				this.worldMatricesCopyHeap.put((i * 16) + 7, worldMatrix.val[Matrix4.M31]);
-				this.worldMatricesCopyHeap.put((i * 16) + 8, worldMatrix.val[Matrix4.M02]);
-				this.worldMatricesCopyHeap.put((i * 16) + 9, worldMatrix.val[Matrix4.M12]);
-				this.worldMatricesCopyHeap.put((i * 16) + 10, worldMatrix.val[Matrix4.M22]);
-				this.worldMatricesCopyHeap.put((i * 16) + 11, worldMatrix.val[Matrix4.M32]);
-				this.worldMatricesCopyHeap.put((i * 16) + 12, worldMatrix.val[Matrix4.M03]);
-				this.worldMatricesCopyHeap.put((i * 16) + 13, worldMatrix.val[Matrix4.M13]);
-				this.worldMatricesCopyHeap.put((i * 16) + 14, worldMatrix.val[Matrix4.M23]);
-				this.worldMatricesCopyHeap.put((i * 16) + 15, worldMatrix.val[Matrix4.M33]);
+				this.worldMatricesCopyHeap.put(this.worldMatrices[i].val, 0, 16);
 			}
+			this.worldMatricesCopyHeap.flip();
 			this.boneTexture.bindAndUpdate(this.worldMatricesCopyHeap);
 		}
 	}
@@ -678,10 +668,15 @@ public class MdxComplexInstance extends ModelInstance {
 	}
 
 	@Override
-	protected void removeLights(final Scene scene2) {
+	protected void removeLights(final Scene scene) {
 		for (final LightInstance light : this.lights) {
-			light.remove(this.scene);
+			light.remove(scene);
 		}
+	}
+
+	@Override
+	protected void onInstanceRemoved(final Scene scene) {
+		removeLights(scene);
 		for (final ParticleEmitter particleEmitter : this.particleEmitters) {
 			particleEmitter.onRemove();
 		}

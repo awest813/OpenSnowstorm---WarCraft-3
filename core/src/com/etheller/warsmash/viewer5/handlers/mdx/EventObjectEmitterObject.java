@@ -188,13 +188,22 @@ public class EventObjectEmitterObject extends GenericObject implements EmitterOb
 	}
 
 	private float getFloat(final MappedDataRow row, final String name) {
-		final Float x = (Float) row.get(name);
-		if (x == null) {
+		final Object value = row.get(name);
+		if (value == null) {
 			return Float.NaN;
 		}
-		else {
-			return x.floatValue();
+		if (value instanceof Number) {
+			return ((Number) value).floatValue();
 		}
+		if (value instanceof String) {
+			try {
+				return Float.parseFloat((String) value);
+			}
+			catch (final NumberFormatException ignored) {
+				return Float.NaN;
+			}
+		}
+		return Float.NaN;
 	}
 
 	private int getInt(final MappedDataRow row, final String name) {
@@ -202,13 +211,22 @@ public class EventObjectEmitterObject extends GenericObject implements EmitterOb
 	}
 
 	private int getInt(final MappedDataRow row, final String name, final int defaultValue) {
-		final Number x = (Number) row.get(name);
-		if (x == null) {
+		final Object value = row.get(name);
+		if (value == null) {
 			return defaultValue;
 		}
-		else {
-			return x.intValue();
+		if (value instanceof Number) {
+			return ((Number) value).intValue();
 		}
+		if (value instanceof String) {
+			try {
+				return Integer.parseInt((String) value);
+			}
+			catch (final NumberFormatException ignored) {
+				return defaultValue;
+			}
+		}
+		return defaultValue;
 	}
 
 	private void load(final List<GenericResource> tables) {

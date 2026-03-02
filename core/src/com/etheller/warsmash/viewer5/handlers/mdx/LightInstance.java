@@ -2,17 +2,28 @@ package com.etheller.warsmash.viewer5.handlers.mdx;
 
 import java.nio.FloatBuffer;
 
-import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
 import com.etheller.warsmash.viewer5.Scene;
 import com.etheller.warsmash.viewer5.SceneLightInstance;
 import com.etheller.warsmash.viewer5.UpdatableObject;
 
 public class LightInstance implements UpdatableObject, SceneLightInstance {
-	private static final Matrix4 matrix4Heap = new Matrix4();
+	/**
+	 * Global frame generation counter. Incremented once per frame by
+	 * {@link #advanceGeneration()} so that each light's packed data is computed at
+	 * most once per frame regardless of how many GPU textures it is written into.
+	 */
+	private static int currentGeneration = 0;
+
 	private static final Vector3 vector3Heap = new Vector3();
 	private static final float[] vectorHeap = new float[3];
 	private static final float[] scalarHeap = new float[1];
+
+	/** Packed 4×4 float block matching the GPU light-texture layout. */
+	private final float[] cache = new float[16];
+	/** Generation at which {@link #cache} was last filled. */
+	private int cacheGeneration = -1;
+
 	protected final MdxNode node;
 	protected final Light light;
 	private boolean visible;
@@ -25,11 +36,42 @@ public class LightInstance implements UpdatableObject, SceneLightInstance {
 		this.light = light;
 	}
 
+	/**
+	 * Advance the global generation counter. Call once at the start of
+	 * {@code W3xSceneWorldLightManager.update()} so that the per-frame cache is
+	 * invalidated exactly once per render frame.
+	 */
+	public static void advanceGeneration() {
+		currentGeneration++;
+	}
+
+	/**
+	 * Fills {@code floatBuffer} starting at absolute position {@code offset} with
+	 * the 16-float packed light block.
+	 *
+	 * <p>Data is computed from keyframe tracks at most once per generation (render
+	 * frame). Subsequent calls within the same generation bulk-copy from the
+	 * internal cache, avoiding redundant keyframe samples.
+	 */
 	@Override
 	public void bind(final int offset, final FloatBuffer floatBuffer) {
+		if (cacheGeneration != currentGeneration) {
+			rebuildCache();
+			cacheGeneration = currentGeneration;
+		}
+		floatBuffer.position(offset);
+		floatBuffer.put(cache, 0, 16);
+	}
+
+	/**
+	 * Recomputes all 16 floats of the light data and stores them in
+	 * {@link #cache}.
+	 */
+	private void rebuildCache() {
 		final int sequence = this.instance.sequence;
 		final int frame = this.instance.frame;
 		final int counter = this.instance.counter;
+
 		this.light.getAttenuationStart(scalarHeap, sequence, frame, counter);
 		final float attenuationStart = scalarHeap[0];
 		this.light.getAttenuationEnd(scalarHeap, sequence, frame, counter);
@@ -46,40 +88,42 @@ public class LightInstance implements UpdatableObject, SceneLightInstance {
 		final float ambientColorRed = vectorHeap[0];
 		final float ambientColorGreen = vectorHeap[1];
 		final float ambientColorBlue = vectorHeap[2];
+
 		switch (this.light.getType()) {
 		case AMBIENT:
 		case OMNIDIRECTIONAL:
-			floatBuffer.put(offset, this.node.worldLocation.x);
-			floatBuffer.put(offset + 1, this.node.worldLocation.y);
-			floatBuffer.put(offset + 2, this.node.worldLocation.z);
+			cache[0] = this.node.worldLocation.x;
+			cache[1] = this.node.worldLocation.y;
+			cache[2] = this.node.worldLocation.z;
 			break;
 		case DIRECTIONAL:
 			vector3Heap.set(0, 0, 1);
 			this.node.localRotation.transform(vector3Heap);
 			vector3Heap.nor();
-			floatBuffer.put(offset, vector3Heap.x);
-			floatBuffer.put(offset + 1, vector3Heap.y);
-			floatBuffer.put(offset + 2, vector3Heap.z);
+			cache[0] = vector3Heap.x;
+			cache[1] = vector3Heap.y;
+			cache[2] = vector3Heap.z;
+			break;
+		default:
+			cache[0] = 0;
+			cache[1] = 0;
+			cache[2] = 0;
 			break;
 		}
-		// I use some padding to make the memory structure of the light be a 4x4 float
-		// grid, when somebody who actually has experience with this stuff comes along
-		// to change this to something smart, maybe they'll remove the padding if it's
-		// not necessary. I'm basing how I implement this on how Ghostwolf did
-		// BoneTexture
-		floatBuffer.put(offset + 3, this.instance.worldLocation.z);
-		floatBuffer.put(offset + 4, this.light.getType().ordinal());
-		floatBuffer.put(offset + 5, attenuationStart);
-		floatBuffer.put(offset + 6, attenuationEnd);
-		floatBuffer.put(offset + 7, 0);
-		floatBuffer.put(offset + 8, colorRed);
-		floatBuffer.put(offset + 9, colorGreen);
-		floatBuffer.put(offset + 10, colorBlue);
-		floatBuffer.put(offset + 11, intensity);
-		floatBuffer.put(offset + 12, ambientColorRed);
-		floatBuffer.put(offset + 13, ambientColorGreen);
-		floatBuffer.put(offset + 14, ambientColorBlue);
-		floatBuffer.put(offset + 15, ambientIntensity);
+
+		cache[3] = this.instance.worldLocation.z;
+		cache[4] = this.light.getType().ordinal();
+		cache[5] = attenuationStart;
+		cache[6] = attenuationEnd;
+		cache[7] = 0;
+		cache[8] = colorRed;
+		cache[9] = colorGreen;
+		cache[10] = colorBlue;
+		cache[11] = intensity;
+		cache[12] = ambientColorRed;
+		cache[13] = ambientColorGreen;
+		cache[14] = ambientColorBlue;
+		cache[15] = ambientIntensity;
 	}
 
 	@Override

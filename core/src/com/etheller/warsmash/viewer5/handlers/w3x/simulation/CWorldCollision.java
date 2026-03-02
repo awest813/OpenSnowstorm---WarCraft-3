@@ -4,6 +4,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import com.badlogic.gdx.math.Rectangle;
+import com.etheller.warsmash.util.ObjectPool;
 import com.etheller.warsmash.util.Quadtree;
 import com.etheller.warsmash.util.QuadtreeIntersector;
 import com.etheller.warsmash.viewer5.handlers.w3x.environment.PathingGrid.MovementType;
@@ -25,6 +26,7 @@ public class CWorldCollision {
 	private final DestructableEnumIntersector destructableEnumIntersector;
 	private final ItemEnumIntersector itemEnumIntersector;
 	private final ItemEnumIntersectorBoolean itemEnumIntersectorBoolean;
+	private final ObjectPool<Set<CUnit>> intersectedUnitsSetPool;
 
 	public CWorldCollision(final Rectangle entireMapBounds, final float maxCollisionRadius) {
 		this.deadUnitCollision = new Quadtree<>(entireMapBounds);
@@ -41,6 +43,7 @@ public class CWorldCollision {
 		this.destructableEnumIntersector = new DestructableEnumIntersector();
 		this.itemEnumIntersector = new ItemEnumIntersector();
 		this.itemEnumIntersectorBoolean = new ItemEnumIntersectorBoolean();
+		this.intersectedUnitsSetPool = new ObjectPool<>(32, HashSet::new);
 	}
 
 	public void addUnit(final CUnit unit) {
@@ -154,44 +157,57 @@ public class CWorldCollision {
 	}
 
 	public void enumUnitsInRect(final Rectangle rect, final CUnitEnumFunction callback) {
-		// NOTE: allocation here seems quite wasteful, but when it was a recycled
-		// value there were times this function looped units in rect, killed a few,
-		// then entered the function again to apply xp gain in an area iterated
-		// around the killed units before finishing the other iteration...
-		// and so a recycled allocation did not work
-		final Set<CUnit> intersectedUnits = new HashSet<>();
-		this.anyUnitEnumerableCollision.intersect(rect, (unit) -> {
-			if (unit.isHidden() || !intersectedUnits.add(unit)) {
-				return false;
-			}
-			return callback.call(unit);
-		});
+		final Set<CUnit> intersectedUnits = this.intersectedUnitsSetPool.acquire();
+		intersectedUnits.clear();
+		try {
+			this.anyUnitEnumerableCollision.intersect(rect, (unit) -> {
+				if (unit.isHidden() || !intersectedUnits.add(unit)) {
+					return false;
+				}
+				return callback.call(unit);
+			});
+		}
+		finally {
+			intersectedUnits.clear();
+			this.intersectedUnitsSetPool.release(intersectedUnits);
+		}
 	}
 
 	public void enumCorpsesInRect(final Rectangle rect, final CUnitEnumFunction callback) {
-		// NOTE: allocation here seems quite wasteful, see note on enumUnitsInRect
-		final Set<CUnit> intersectedUnits = new HashSet<>();
-		this.deadUnitCollision.intersect(rect, (unit) -> {
-			if (unit.isHidden() || !intersectedUnits.add(unit)) {
-				return false;
-			}
-			return callback.call(unit);
-		});
+		final Set<CUnit> intersectedUnits = this.intersectedUnitsSetPool.acquire();
+		intersectedUnits.clear();
+		try {
+			this.deadUnitCollision.intersect(rect, (unit) -> {
+				if (unit.isHidden() || !intersectedUnits.add(unit)) {
+					return false;
+				}
+				return callback.call(unit);
+			});
+		}
+		finally {
+			intersectedUnits.clear();
+			this.intersectedUnitsSetPool.release(intersectedUnits);
+		}
 	}
 	
 	public void enumUnitsOrCorpsesInRect(final Rectangle rect, final CUnitEnumFunction callback) {
-		// NOTE: allocation here seems quite wasteful, see note on enumUnitsInRect
-		final Set<CUnit> intersectedUnits = new HashSet<>();
-		final QuadtreeIntersector<CUnit> intersectorFxn = (unit) -> {
-			if (unit.isHidden() || !intersectedUnits.add(unit)) {
-				return false;
+		final Set<CUnit> intersectedUnits = this.intersectedUnitsSetPool.acquire();
+		intersectedUnits.clear();
+		try {
+			final QuadtreeIntersector<CUnit> intersectorFxn = (unit) -> {
+				if (unit.isHidden() || !intersectedUnits.add(unit)) {
+					return false;
+				}
+				return callback.call(unit);
+			};
+			if (!this.anyUnitEnumerableCollision.intersect(rect, intersectorFxn)) {
+				this.deadUnitCollision.intersect(rect, intersectorFxn);
 			}
-			return callback.call(unit);
-		};
-		if (!this.anyUnitEnumerableCollision.intersect(rect, intersectorFxn)) {
-			this.deadUnitCollision.intersect(rect, intersectorFxn);
 		}
-
+		finally {
+			intersectedUnits.clear();
+			this.intersectedUnitsSetPool.release(intersectedUnits);
+		}
 	}
 
 	public void enumCorpsesInRange(final float x, final float y, final float radius, final CUnitEnumFunction callback) {

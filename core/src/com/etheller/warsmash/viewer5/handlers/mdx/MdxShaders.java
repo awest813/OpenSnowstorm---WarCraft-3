@@ -77,21 +77,24 @@ public class MdxShaders {
 			"      v_eyeVec = normalize(TBN(normalize(mv * u_eyePos - position_mv), t, b, n));\r\n" + //
 			"      \r\n" + //
 			// TODO fix giant hack on lighting
-			"      float rowPos = (0.5) / u_lightTextureHeight;\r\n" + //
-			"      vec4 lightPosition = texture(u_lightTexture, vec2(0.125, rowPos));\r\n" + //
-			"      vec4 lightExtra = texture(u_lightTexture, vec2(0.375, rowPos));\r\n" + //
-			"      vec3 u_lightPos = mv * lightPosition.xyz;\r\n" + //
-			"      vec3 lightDir;\r\n" + //
-			"      if(lightExtra.x > 0.5) {\r\n" + //
-			"          // Sunlight ('directional')\r\n" + //
-			"      	   lightDir = normalize(u_lightPos);\r\n" + //
-			"          v_lightDir = vec4(normalize(TBN(lightDir, t, b, n)), 1.0);\r\n" + //
-			"      } else {\r\n" + //
-			"          // Point light ('omnidirectional')\r\n" + //
-			"          vec3 delta = u_lightPos - position_mv;\r\n" + //
-			"          lightDir = normalize(delta);\r\n" + //
+			"      v_lightDir = vec4(0.0);\r\n" + //
+			"      if (u_lightTextureHeight > 0.5) {\r\n" + //
+			"        float rowPos = (0.5) / u_lightTextureHeight;\r\n" + //
+			"        vec4 lightPosition = texture(u_lightTexture, vec2(0.125, rowPos));\r\n" + //
+			"        vec4 lightExtra = texture(u_lightTexture, vec2(0.375, rowPos));\r\n" + //
+			"        vec3 u_lightPos = mv * lightPosition.xyz;\r\n" + //
+			"        vec3 lightDir;\r\n" + //
+			"        if(lightExtra.x > 0.5) {\r\n" + //
+			"            // Sunlight ('directional')\r\n" + //
+			"            lightDir = normalize(u_lightPos);\r\n" + //
+			"            v_lightDir = vec4(normalize(TBN(lightDir, t, b, n)), 1.0);\r\n" + //
+			"        } else {\r\n" + //
+			"            // Point light ('omnidirectional')\r\n" + //
+			"            vec3 delta = u_lightPos - position_mv;\r\n" + //
+			"            lightDir = normalize(delta);\r\n" + //
 			"            float dist = length(delta) / 64.0 + 1.0;\r\n" + //
-			"          v_lightDir = vec4(normalize(TBN(lightDir, t, b, n)), 1.0/pow(dist, 2.0));\r\n" + //
+			"            v_lightDir = vec4(normalize(TBN(lightDir, t, b, n)), 1.0/pow(dist, 2.0));\r\n" + //
+			"        }\r\n" + //
 			"      }\r\n" + //
 			"      \r\n" + //
 			"      if( u_lightTextureHeight > 1.5 ) {\r\n" + //

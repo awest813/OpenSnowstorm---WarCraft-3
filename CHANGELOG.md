@@ -15,6 +15,212 @@ Changes are grouped by category:
 
 ---
 
+## Phase D — Finalization Pass (2026-03-02)
+
+### fix
+- **Canonical parser path for runtime mapped tables**: `MappedData.load(String)`
+  no longer routes through legacy `SlkFile` / `IniFile`. It now parses with
+  `DataTable.readSLK/readTXT` and ingests through `DataTableSource`, completing
+  parser unification for terrain/splat/anim-sound table loads that flow through
+  `MappedData`.
+- **MappedData SLK type compatibility preserved**: when loading SLK buffers,
+  `MappedData` now coerces canonical string cells back to legacy-compatible
+  primitive types (`Float` and `Boolean`) so existing `MappedDataRow` numeric
+  consumers continue to behave as before.
+- **Event-object numeric parsing hardened**: `EventObjectEmitterObject` no longer
+  blindly casts SLK fields to `Float`/`Number`; it now accepts both numeric and
+  string-backed values, preventing `ClassCastException` risk if data source
+  formats differ.
+- **Destructable metadata SLK load fix**: `War3MapViewer.loadSLKs()` now applies
+  `Units\\DestructableMetaData.slk` to `destructableMetaData` (previously it
+  accidentally reloaded `DestructableData.slk` into that table).
+
+### perf
+- **ObjectPool wired into simulation allocations**:
+  - `CWorldCollision.enumUnitsInRect`, `enumCorpsesInRect`, and
+    `enumUnitsOrCorpsesInRect` now reuse pooled scratch `Set<CUnit>` instances
+    instead of allocating a new `HashSet` on every call.
+  - `CSimulation.update()` now uses a pooled scratch `Set<CTimer>` for duplicate
+    timer validation instead of per-tick allocation.
+  All pooled paths use `try/finally` acquire/release for exception-safe reuse.
+
+### test
+- `TableDataSourceTest` extended with
+  `slkBooleansAndIntegersRemainTypedInMappedData`, asserting canonical-parser
+  `MappedData` still exposes typed `Boolean` and numeric values for SLK cells.
+
+### docs
+- Updated README and modernization roadmap status for Phase D:
+  parser remaining-caller migration and ObjectPool wiring now marked complete;
+  async asset pipeline remains the primary pending Phase D item.
+
+---
+
+## Phase D — Implementation & Hardening (2026-03-02)
+
+### perf
+- **SimulationBudgetTracker wired**: `War3MapViewer.update()` now wraps each
+  `CSimulation.update()` call with `SimulationBudgetTracker.beginTick()` /
+  `endTick()`. Per-tick timing is reported every ~60 s with avg/max and overrun
+  percentage.
+- **Asset cache telemetry**: New `AssetCacheTelemetry` class instruments both
+  cache paths in `ModelViewer` (`load()` and `loadGeneric()`). Hit/miss counts
+  and hit-rate percentage are logged to stdout every 50 cache misses via
+  `[AssetCache]` lines.
+
+### compat
+- **GL version guard**: `StartupDiagnostics.checkGLRequirements()` is now called
+  from `WarsmashGdxMultiScreenGame.create()` immediately after the capability
+  report. If the driver reports OpenGL < 3.3 the engine prints a user-readable
+  error message (detected vs. required version, plus driver update suggestions)
+  and exits with code 1. Requires no user action on supported hardware.
+- **Named launch profiles**: `DesktopLauncher` accepts a new `-profile <name>`
+  flag with three presets:
+  - `safe` — windowed 1280×720, no MSAA, vsync on, 60 fps cap.
+  - `balanced` — windowed 1280×720, 2× MSAA, vsync on, 60/30 fps cap.
+  - `high` — fullscreen, 4× MSAA, vsync on, uncapped.
+  Individual flags (`-window`, `-msaa`, `-fps`, etc.) still override the profile.
+  Profile selection is announced in the startup log.
+
+### fix
+- **Server: O(n) disconnection lookup eliminated**: `GamingNetworkServerBusinessLogicImpl`
+  previously iterated all active sessions to find the one matching a disconnected
+  writer — an O(n) scan that became a DDoS amplification vector under load. A
+  new `writerToSession` reverse-map is now kept in sync at `login()` /
+  `killSession()`, reducing disconnection handling to O(1).
+- **Server: login and account-creation rate limiting**: New `LoginRateLimiter`
+  tracks failed auth attempts per remote address using a 60-second sliding window.
+  After 5 failures the address is blocked for 5 minutes; subsequent requests are
+  rejected before touching user storage. The block is announced in the server log
+  with address, threshold, and cooldown duration.
+
+### qol
+- **Package ownership markers**: `package-info.java` files added for the four
+  principal architecture layers — `render` (`viewer5`), `simulation`
+  (`simulation`), `assets` (`datasources`), and `net` (`networking`) — documenting
+  allowed and forbidden cross-layer dependencies.
+
+### test
+- `ObjectPoolTest` (8 tests): acquire/release round-trip, overflow behaviour,
+  hit-rate calculation, `resetStats()` isolation.
+- `SimulationBudgetTrackerTest` (5 tests): begin/end semantics, no-throw on
+  zero-duration ticks, report-interval boundary at 3 600 ticks.
+- `StartupDiagnosticsTest` (9 tests): `parseGLVersion()` against NVIDIA, Intel
+  DCH, Mesa, ATI, and degenerate inputs.
+- `AssetCacheTelemetryTest` (7 tests): hit/miss counting, hit-rate, reset, and
+  periodic-report no-throw.
+
+---
+
+## Phase D — Parser Unification Kickoff (2026-03-02)
+
+### fix
+- Added a new read-only parser abstraction:
+  `com.etheller.warsmash.util.table.TableDataSource`.
+- Added adapter implementations for all current table stacks:
+  - `SlkFileDataSource` (legacy `SlkFile`)
+  - `IniFileDataSource` (legacy `IniFile`)
+  - `DataTableSource` (canonical `DataTable`)
+- Refactored `MappedData` to load through `TableDataSource` adapters instead of
+  directly binding to parser implementations. This unifies the first caller onto
+  the Phase D parser interface without changing existing runtime behavior.
+
+### test
+- Added `TableDataSourceTest` with:
+  - SLK parity checks between `SlkFileDataSource` and `DataTableSource`
+  - INI parity checks between `IniFileDataSource` and `DataTableSource`
+  - A compatibility assertion that `MappedData` still exposes typed numeric
+    SLK values needed by existing emitter-loading code paths
+
+---
+
+## Phase C — Render Hot-Path Performance (2026-03-02)
+
+### perf
+- **Light-data per-frame cache**: `LightInstance` now caches its packed 16-float
+  GPU block in a `float[] cache` field guarded by a static generation counter.
+  `LightInstance.advanceGeneration()` is called once per frame by
+  `W3xSceneWorldLightManager.update()`. Subsequent `bind()` calls within the
+  same frame bulk-copy from the cache via `FloatBuffer.put(float[], 0, 16)`
+  instead of re-evaluating all keyframe tracks. Halves the number of keyframe
+  sampler calls for every active point light regardless of how many GPU textures
+  it is written into.
+- **Separate unit/terrain light buffers**: `W3xSceneWorldLightManager` now owns
+  a dedicated `unitLightBuffer` and `terrainLightBuffer`. Both are populated in
+  a single loop over `this.lights`, eliminating the shared-buffer `clear()`/reuse
+  pattern that forced sequential uploads and obscured buffer ownership.
+- **Bone texture bulk copy**: `MdxComplexInstance.updateBoneTexture()` replaced
+  16 absolute-indexed `FloatBuffer.put(int, float)` calls per bone with a single
+  `FloatBuffer.put(float[], 0, 16)` bulk copy (JVM maps this to native `memcpy`).
+  A trailing `flip()` correctly positions the buffer for `DataTexture.bindAndUpdate`.
+  For a model with 80 bones this reduces per-frame JNI scalar writes from 1,280
+  to 80 bulk copies.
+- **Frame-pacing p95/p99**: `FramePacingTracker.report()` now sorts a copy of
+  its ring buffer and includes the 95th- and 99th-percentile frame times in the
+  60-second summary line. A spike-detection warning fires when p99 exceeds 3×
+  the window average. Zero per-frame overhead — sorting happens only during the
+  periodic report.
+- **`ObjectPool<T>`**: New `com.etheller.warsmash.util.ObjectPool<T>` — a
+  fixed-capacity stack-backed pool with `acquire()`/`release()` semantics and a
+  `hitRate()` diagnostic. Provides the infrastructure for reducing GC pressure in
+  particle-emission and simulation-allocation hot paths in Phase D.
+- **`SimulationBudgetTracker`**: New `com.etheller.warsmash.util.SimulationBudgetTracker`
+  measures wall time around any simulation block via `beginTick()`/`endTick()`.
+  Reports avg/max per-tick cost, configured budget (default 8 ms), and overrun
+  count every ~60 s. Ready to be wired around `CSimulation.step()` in Phase D.
+
+### docs
+- **OpenMW-equivalent vision**: README rewritten to open with Warsmash's long-term
+  goal of being the OpenMW for Warcraft III. Roadmap table extended to include
+  Phases C–F.
+- **ENGINE_MODERNIZATION_ANALYSIS.md** updated: Phase C deliverables documented
+  in detail; Phases D (parser unification, async pipeline, server hardening),
+  E (scripting, map format), and F (modding layer) added with item lists.
+
+---
+
+## User-Testing Readiness (2026-03-02)
+
+### fix
+- **Particle emitters killed on view-cull**: `MdxComplexInstance.removeLights()`
+  previously called `particleEmitter.onRemove()` for every emitter when the
+  instance was pruned from the visible list during `Scene.update()`. This tore
+  down particle effects any time a unit scrolled off screen. The fix separates
+  concerns: `removeLights()` now only deregisters `LightInstance` objects;
+  particle-emitter teardown is moved to a new `onInstanceRemoved()` hook that is
+  called only from `Scene.removeInstance()` (permanent removal). View-culled
+  instances continue to deregister their lights correctly.
+- **Ghost batched instances after removal**: `Scene.removeInstance()` removed the
+  instance from `this.instances` but not from `this.batchedInstances`. A removed
+  batched unit could persist in the render list until the next full frame prune,
+  producing a one-frame ghost. `batchedInstances.remove(instance)` is now called
+  unconditionally.
+- **vsHd GLSL divide-by-zero with empty light texture**: The first light in the
+  `vsHd` vertex shader was read unconditionally via `0.5 / u_lightTextureHeight`,
+  which evaluates to `+Infinity` in GLSL when no lights are active
+  (`u_lightTextureHeight == 0`). The read is now guarded by
+  `if (u_lightTextureHeight > 0.5)` and `v_lightDir` is pre-initialised to
+  `vec4(0.0)` so the downstream fragment shader receives a safe value when the
+  scene has no dynamic lights.
+- **Uninitialised `mat4 bone` in vertex-group shader path**: The non-SKIN
+  `getVertexGroupMatrix()` function in `Shaders.transforms` declared `mat4 bone;`
+  without an initialiser. GLSL 3.30 core does not zero-initialise locals, so bone
+  accumulation operated on undefined memory and could produce corrupted vertex
+  positions for vertex-group-animated models. Changed to `mat4 bone = mat4(0.0);`.
+
+### qol
+- **Paired log file names**: `DesktopLauncher` now captures a single
+  `System.currentTimeMillis()` value and uses it for both the `.out.log` and
+  `.err.log` filenames, ensuring the two files from the same session share the
+  same timestamp prefix.
+
+### test
+- Added 3 new unit tests to `MdxShadersTest` covering the shader fixes:
+  `vsHd_firstLightIsGuardedByLightCount`, `vsHd_defaultsVLightDirToZero`, and
+  `transforms_nonSkinPath_boneMatrixInitialised`. Total test count: 23.
+
+---
+
 ## Phase B — Stability & Shader Normalization (2026-03-02)
 
 ### fix

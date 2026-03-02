@@ -62,6 +62,7 @@ import com.etheller.warsmash.units.custom.WTS;
 import com.etheller.warsmash.units.manager.MutableObjectData.WorldEditorDataType;
 import com.etheller.warsmash.util.MappedData;
 import com.etheller.warsmash.util.Quadtree;
+import com.etheller.warsmash.util.SimulationBudgetTracker;
 import com.etheller.warsmash.util.QuadtreeIntersector;
 import com.etheller.warsmash.util.RenderMathUtils;
 import com.etheller.warsmash.util.War3ID;
@@ -233,6 +234,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 	public MdxComplexInstance dncTarget;
 	public CSimulation simulation;
 	private float updateTime = 0;
+	private final SimulationBudgetTracker simulationBudgetTracker = new SimulationBudgetTracker();
 
 	// for World Editor, I think
 	public Vector2[] startLocations = new Vector2[WarsmashConstants.MAX_PLAYERS];
@@ -323,7 +325,7 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 		this.doodadsData.load(doodads.data.toString());
 		this.doodadMetaData.load(doodadMetaData.data.toString());
 		this.doodadsData.load(destructableData.data.toString());
-		this.destructableMetaData.load(destructableData.data.toString());
+		this.destructableMetaData.load(destructableMetaData.data.toString());
 		// emit doodads loaded
 
 		final GenericResource unitData = loadMapGeneric("Units\\UnitData.slk", FetchDataTypeName.SLK,
@@ -1182,7 +1184,9 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 			while (this.updateTime >= WarsmashConstants.SIMULATION_STEP_TIME) {
 				if (this.gameTurnManager.getLatestCompletedTurn() >= this.simulation.getGameTurnTick()) {
 					this.updateTime -= WarsmashConstants.SIMULATION_STEP_TIME;
+					final long simStart = this.simulationBudgetTracker.beginTick();
 					this.simulation.update();
+					this.simulationBudgetTracker.endTick(simStart);
 					this.gameTurnManager.turnCompleted(this.simulation.getGameTurnTick());
 				}
 				else {
@@ -1603,27 +1607,6 @@ public class War3MapViewer extends AbstractMdxModelViewer implements MdxAssetLoa
 			}
 		}
 		return entity;
-	}
-
-	private static final class MappedDataCallbackImplementation implements LoadGenericCallback {
-		@Override
-		public Object call(final InputStream data) {
-			final StringBuilder stringBuilder = new StringBuilder();
-			try (BufferedReader reader = new BufferedReader(new InputStreamReader(data, "utf-8"))) {
-				String line;
-				while ((line = reader.readLine()) != null) {
-					stringBuilder.append(line);
-					stringBuilder.append("\n");
-				}
-			}
-			catch (final UnsupportedEncodingException e) {
-				throw new RuntimeException(e);
-			}
-			catch (final IOException e) {
-				throw new RuntimeException(e);
-			}
-			return new MappedData(stringBuilder.toString());
-		}
 	}
 
 	private static final class StringDataCallbackImplementation implements LoadGenericCallback {
