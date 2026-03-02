@@ -59,6 +59,7 @@ So, when I copied the asset resolution from that system into Warsmash and expand
 3. Manually modify the contents of `core/assets/warsmash.ini` to locate game assets (i.e. Warcraft 3) on your computer from some other directory
 4. Run the Gradle target called `runGame`
 5. If you wish to repeatedly play a test map, you can use `runGame -Pargs="-loadfile WorldEditTestMap.w3x -window"` to automatically launch a map named `WorldEditTestMap.w3x` when launching Warsmash from the IDE in windowed mode
+6. Additional launcher QoL/performance flags are available when passing `-Pargs`: `-windowed [width height]`, `-fps <value>`, `-vsync` / `-novsync`, `-msaa <samples>`, `-ini <path>`, and `-help` for command documentation.
 
 ### From the Eclipse IDE
 1. Download Eclipse

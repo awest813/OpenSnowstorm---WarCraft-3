@@ -44,6 +44,9 @@ import com.etheller.warsmash.viewer5.gl.Extensions;
 import com.etheller.warsmash.viewer5.gl.WireframeExtension;
 
 public class DesktopLauncher {
+	private static final int DEFAULT_WINDOWED_WIDTH = 1280;
+	private static final int DEFAULT_WINDOWED_HEIGHT = 720;
+
 	public static void main(final String[] arg) {
 		System.out.println("Warsmash engine is starting...");
 		final LwjglApplicationConfiguration config = new LwjglApplicationConfiguration();
@@ -65,12 +68,42 @@ public class DesktopLauncher {
 		String fileToLoad = null;
 		String iniPath = null;
 		boolean noLogs = false;
+		Integer targetFps = null;
+		Integer msaaSamples = null;
+		Boolean vSyncEnabled = null;
 		for (int argIndex = 0; argIndex < arg.length; argIndex++) {
-			if ("-window".equals(arg[argIndex])) {
+			if ("-help".equals(arg[argIndex]) || "--help".equals(arg[argIndex]) || "-h".equals(arg[argIndex])) {
+				printHelpAndExit();
+			}
+			else if ("-window".equals(arg[argIndex]) || "-windowed".equals(arg[argIndex])) {
 				config.fullscreen = false;
+				if ((arg.length > (argIndex + 2)) && isInteger(arg[argIndex + 1]) && isInteger(arg[argIndex + 2])) {
+					argIndex++;
+					config.width = parseIntWithFallback(arg[argIndex], DEFAULT_WINDOWED_WIDTH, "window width");
+					argIndex++;
+					config.height = parseIntWithFallback(arg[argIndex], DEFAULT_WINDOWED_HEIGHT, "window height");
+				}
+				else {
+					config.width = DEFAULT_WINDOWED_WIDTH;
+					config.height = DEFAULT_WINDOWED_HEIGHT;
+				}
 			}
 			else if ("-nolog".equals(arg[argIndex])) {
 				noLogs = true;
+			}
+			else if ("-vsync".equals(arg[argIndex])) {
+				vSyncEnabled = Boolean.TRUE;
+			}
+			else if ("-novsync".equals(arg[argIndex])) {
+				vSyncEnabled = Boolean.FALSE;
+			}
+			else if ((arg.length > (argIndex + 1)) && "-fps".equals(arg[argIndex])) {
+				argIndex++;
+				targetFps = parseIntWithFallback(arg[argIndex], 0, "target FPS");
+			}
+			else if ((arg.length > (argIndex + 1)) && "-msaa".equals(arg[argIndex])) {
+				argIndex++;
+				msaaSamples = parseIntWithFallback(arg[argIndex], 0, "MSAA samples");
 			}
 			else if ((arg.length > (argIndex + 1)) && "-loadfile".equals(arg[argIndex])) {
 				argIndex++;
@@ -80,6 +113,16 @@ public class DesktopLauncher {
 				argIndex++;
 				iniPath = arg[argIndex];
 			}
+		}
+		if (vSyncEnabled != null) {
+			config.vSyncEnabled = vSyncEnabled;
+		}
+		if (targetFps != null) {
+			config.foregroundFPS = Math.max(0, targetFps);
+			config.backgroundFPS = Math.max(0, targetFps);
+		}
+		if ((msaaSamples != null) && (msaaSamples > 0)) {
+			config.samples = msaaSamples;
 		}
 		if (!noLogs) {
 			new File("Logs").mkdir();
@@ -126,6 +169,39 @@ public class DesktopLauncher {
 				}
 			}
 		});
+	}
+
+	private static void printHelpAndExit() {
+		System.out.println("Warsmash desktop launcher options:");
+		System.out.println("  -help | --help | -h          Show this help message");
+		System.out.println("  -window | -windowed [w h]    Run in windowed mode (defaults to 1280x720)");
+		System.out.println("  -vsync | -novsync            Force VSync on or off");
+		System.out.println("  -fps <value>                 Limit foreground/background FPS (0 = uncapped)");
+		System.out.println("  -msaa <samples>              Set MSAA sample count (example: 4)");
+		System.out.println("  -ini <path>                  Use a custom warsmash ini file");
+		System.out.println("  -loadfile <path>             Auto-load a map or toc file");
+		System.out.println("  -nolog                       Keep stdout/stderr in console");
+		System.exit(0);
+	}
+
+	private static boolean isInteger(final String value) {
+		try {
+			Integer.parseInt(value);
+			return true;
+		}
+		catch (final NumberFormatException exc) {
+			return false;
+		}
+	}
+
+	private static int parseIntWithFallback(final String value, final int fallback, final String optionName) {
+		try {
+			return Integer.parseInt(value);
+		}
+		catch (final NumberFormatException exc) {
+			System.err.println("Invalid value for " + optionName + ": '" + value + "'. Using " + fallback + '.');
+			return fallback;
+		}
 	}
 
 	public static DataTable loadWarsmashIni(final String iniPath) {
