@@ -1,6 +1,6 @@
 # Parser Consolidation Design
 
-> **Phase B deliverable — design only; implementation is Phase C.**
+> **Phase B deliverable — design only; implementation is Phase D.**
 
 ## Problem Statement
 
@@ -25,8 +25,8 @@ Maintaining two separate parsers for each format creates:
 
 ## 1. Unified Interface
 
-Introduce a single read-only interface `TableDataSource` in a new package
-`com.etheller.warsmash.datasource` (or under `util`):
+Introduce a single read-only interface `TableDataSource` in package
+`com.etheller.warsmash.util.table`:
 
 ```java
 public interface TableDataSource {
@@ -86,16 +86,16 @@ public final class DataTableSource implements TableDataSource {
 }
 ```
 
-### 3.2 `SlkFileSource` / `IniFileSource`
+### 3.2 `SlkFileDataSource` / `IniFileDataSource`
 
 Wrap the legacy viewer parsers and implement `TableDataSource`. These adapters
 let existing `MappedData` callers switch to the interface *before* their
 underlying implementation is swapped:
 
 ```java
-public final class SlkFileSource implements TableDataSource {
+public final class SlkFileDataSource implements TableDataSource {
     private final SlkFile slk;
-    public SlkFileSource(SlkFile slk) { this.slk = slk; }
+    public SlkFileDataSource(SlkFile slk) { this.slk = slk; }
     // ... delegate to SlkFile
 }
 ```
@@ -151,11 +151,11 @@ existing CI matrix (Ubuntu + Windows × Java 17 + 21).
    implementation begins to avoid a rename refactor later.
 
 4. **Streaming vs. in-memory**: Both current parsers are fully in-memory.
-   Phase C can defer a streaming/lazy-loading redesign to a later phase if
+   Phase D can defer a streaming/lazy-loading redesign to a later phase if
    memory is not a bottleneck.
 
 ---
 
 *This document is a design artefact for Phase B. The actual implementation is
-scheduled for Phase C. See `docs/ENGINE_MODERNIZATION_ANALYSIS.md` for the
+scheduled for Phase D. See `docs/ENGINE_MODERNIZATION_ANALYSIS.md` for the
 overall roadmap.*

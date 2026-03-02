@@ -15,6 +15,28 @@ Changes are grouped by category:
 
 ---
 
+## Phase D — Parser Unification Kickoff (2026-03-02)
+
+### fix
+- Added a new read-only parser abstraction:
+  `com.etheller.warsmash.util.table.TableDataSource`.
+- Added adapter implementations for all current table stacks:
+  - `SlkFileDataSource` (legacy `SlkFile`)
+  - `IniFileDataSource` (legacy `IniFile`)
+  - `DataTableSource` (canonical `DataTable`)
+- Refactored `MappedData` to load through `TableDataSource` adapters instead of
+  directly binding to parser implementations. This unifies the first caller onto
+  the Phase D parser interface without changing existing runtime behavior.
+
+### test
+- Added `TableDataSourceTest` with:
+  - SLK parity checks between `SlkFileDataSource` and `DataTableSource`
+  - INI parity checks between `IniFileDataSource` and `DataTableSource`
+  - A compatibility assertion that `MappedData` still exposes typed numeric
+    SLK values needed by existing emitter-loading code paths
+
+---
+
 ## Phase C — Render Hot-Path Performance (2026-03-02)
 
 ### perf

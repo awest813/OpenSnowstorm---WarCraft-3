@@ -2,9 +2,12 @@ package com.etheller.warsmash.util;
 
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+
+import com.etheller.warsmash.util.table.IniFileDataSource;
+import com.etheller.warsmash.util.table.SlkFileDataSource;
+import com.etheller.warsmash.util.table.TableDataSource;
 
 /**
  * A structure that holds mapped data from INI and SLK files.
@@ -31,63 +34,41 @@ public class MappedData implements Iterable<Map.Entry<String, MappedDataRow>> {
 	 * Note that this may override previous properties!
 	 */
 	public void load(final String buffer) {
+		if (buffer == null) {
+			return;
+		}
 		if (buffer.startsWith("ID;")) {
-			final SlkFile file = new SlkFile(buffer);
-			final List<List<Object>> rows = file.rows;
-			final List<Object> header = rows.get(0);
-			int keyColumn = 0;
-			for (int i = 1; i < header.size(); i++) {
-				final Object headerColumnName = header.get(i);
-				if ("AnimationEventCode".equals(headerColumnName)) {
-					keyColumn = i;
-				}
-			}
-
-			for (int i = 1, l = rows.size(); i < l; i++) {
-				final List<Object> row = rows.get(i);
-				if (row != null) {
-					String name = (String) row.get(keyColumn);
-
-					if (name != null) {
-						name = name.toLowerCase();
-
-						if (!this.map.containsKey(name)) {
-							this.map.put(name, new MappedDataRow());
-						}
-
-						final MappedDataRow mapped = this.map.get(name);
-
-						for (int j = 0, k = header.size(); j < k; j++) {
-							final Object headerObj = header.get(j);
-							String key = headerObj == null ? null : headerObj.toString();
-
-							// UnitBalance.slk doesn't define the name of one row.
-							if (key == null) {
-								key = "column" + j;
-							}
-
-							mapped.put(key, j < row.size() ? row.get(j) : null);
-						}
-					}
-				}
-			}
+			load(new SlkFileDataSource(new SlkFile(buffer)));
 		}
 		else {
-			final IniFile file = new IniFile(buffer);
-			final Map<String, Map<String, String>> sections = file.sections;
+			load(new IniFileDataSource(new IniFile(buffer)));
+		}
+	}
 
-			for (final Map.Entry<String, Map<String, String>> rowAndProperties : sections.entrySet()) {
-				final String row = rowAndProperties.getKey();
-
-				if (!this.map.containsKey(row)) {
-					this.map.put(row, new MappedDataRow());
+	/**
+	 * Load data from any table-backed data source.
+	 *
+	 * Note that this may override previous properties!
+	 */
+	public void load(final TableDataSource dataSource) {
+		if (dataSource == null) {
+			return;
+		}
+		for (final String row : dataSource.rowKeys()) {
+			if (row == null) {
+				continue;
+			}
+			final String normalizedRow = row.toLowerCase();
+			MappedDataRow mapped = this.map.get(normalizedRow);
+			if (mapped == null) {
+				mapped = new MappedDataRow();
+				this.map.put(normalizedRow, mapped);
+			}
+			for (final String column : dataSource.columnKeys(row)) {
+				if (column == null) {
+					continue;
 				}
-
-				final MappedDataRow mapped = this.map.get(row);
-
-				for (final Map.Entry<String, String> nameAndProperty : rowAndProperties.getValue().entrySet()) {
-					mapped.put(nameAndProperty.getKey(), nameAndProperty.getValue());
-				}
+				mapped.put(column, dataSource.getRaw(row, column));
 			}
 		}
 	}
