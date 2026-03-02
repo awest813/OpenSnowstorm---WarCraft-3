@@ -17,6 +17,13 @@ Changes are grouped by category:
 
 ## [Unreleased]
 
+*Phase B work in progress — see `docs/ENGINE_MODERNIZATION_ANALYSIS.md` for the
+full roadmap.*
+
+---
+
+## Phase A — Compatibility, Diagnostics & Documentation (2026-03-02)
+
 ### qol
 - Added startup capability report: GL vendor/renderer/version, GLSL version,
   display resolution, Java version, and OS info are printed to stdout at launch.
