@@ -24,14 +24,18 @@ public class LightningEffectBatch extends RenderBatch {
 	private static final int LIGHTNING_EFFECT_INSTANCE_BYTES = LIGHTNING_EFFECT_STRIDE_BYTES * 6;
 	private static final int LIGHTNING_EFFECT_INDEX_STRIDE_BYTES = 3 * 2;
 	private static final int LIGHTNING_EFFECT_INDEX_INSTANCE_BYTES = LIGHTNING_EFFECT_INDEX_STRIDE_BYTES * 4;
+	private static final int LIGHTNING_EFFECT_INDICES_PER_INSTANCE = 12;
 	private static final Matrix4 transposeHeap = new Matrix4();
 	protected static final Vector3 lineHeap = new Vector3();
 	private static final Vector3 crossHeap = new Vector3();
 	private static final Vector3 vertexHeap = new Vector3();
 	private ShortBuffer indexBuffer;
+	private int uploadedIndexCount;
 	public LightningEffectBatch(Scene scene, Model<?> model, TextureMapper textureMapper) {
 		super(scene, model, textureMapper);
-		indexBuffer = ByteBuffer.allocateDirect(2 * 6).order(ByteOrder.nativeOrder()).asShortBuffer();
+		indexBuffer = ByteBuffer.allocateDirect(LIGHTNING_EFFECT_INDICES_PER_INSTANCE * 2).order(ByteOrder.nativeOrder())
+				.asShortBuffer();
+		this.uploadedIndexCount = 0;
 	}
 
 	private void bindAndUpdateBuffer(ClientBuffer buffer) {
@@ -40,10 +44,15 @@ public class LightningEffectBatch extends RenderBatch {
 
 		// Ensure there is enough memory for all of the instances data.
 		buffer.reserve(count * LIGHTNING_EFFECT_INSTANCE_BYTES);
-		if(indexBuffer.capacity() < count * LIGHTNING_EFFECT_INDEX_INSTANCE_BYTES) {
-			indexBuffer = ByteBuffer.allocateDirect(count * LIGHTNING_EFFECT_INDEX_INSTANCE_BYTES).order(ByteOrder.nativeOrder()).asShortBuffer();
+		final int requiredIndexShorts = count * LIGHTNING_EFFECT_INDICES_PER_INSTANCE;
+		if (indexBuffer.capacity() < requiredIndexShorts) {
+			indexBuffer = ByteBuffer.allocateDirect(requiredIndexShorts * 2).order(ByteOrder.nativeOrder())
+					.asShortBuffer();
 		}
-		indexBuffer.clear();
+		final boolean rebuildIndexBuffer = count != this.uploadedIndexCount;
+		if (rebuildIndexBuffer) {
+			indexBuffer.clear();
+		}
 
 		final FloatBuffer floatView = buffer.floatView;
 
@@ -150,25 +159,30 @@ public class LightningEffectBatch extends RenderBatch {
 			floatView.put(offset++, source.color[2]);
 			floatView.put(offset++, source.color[3]);
 
-			int indexBufferGroupIdx = i * 6;
-			indexBuffer.put((short) (indexBufferGroupIdx + 0));
-			indexBuffer.put((short) (indexBufferGroupIdx + 2));
-			indexBuffer.put((short) (indexBufferGroupIdx + 1));
-			indexBuffer.put((short) (indexBufferGroupIdx + 2));
-			indexBuffer.put((short) (indexBufferGroupIdx + 4));
-			indexBuffer.put((short) (indexBufferGroupIdx + 1));
-			indexBuffer.put((short) (indexBufferGroupIdx + 1));
-			indexBuffer.put((short) (indexBufferGroupIdx + 4));
-			indexBuffer.put((short) (indexBufferGroupIdx + 3));
-			indexBuffer.put((short) (indexBufferGroupIdx + 4));
-			indexBuffer.put((short) (indexBufferGroupIdx + 5));
-			indexBuffer.put((short) (indexBufferGroupIdx + 3));
+			if (rebuildIndexBuffer) {
+				int indexBufferGroupIdx = i * 6;
+				indexBuffer.put((short) (indexBufferGroupIdx + 0));
+				indexBuffer.put((short) (indexBufferGroupIdx + 2));
+				indexBuffer.put((short) (indexBufferGroupIdx + 1));
+				indexBuffer.put((short) (indexBufferGroupIdx + 2));
+				indexBuffer.put((short) (indexBufferGroupIdx + 4));
+				indexBuffer.put((short) (indexBufferGroupIdx + 1));
+				indexBuffer.put((short) (indexBufferGroupIdx + 1));
+				indexBuffer.put((short) (indexBufferGroupIdx + 4));
+				indexBuffer.put((short) (indexBufferGroupIdx + 3));
+				indexBuffer.put((short) (indexBufferGroupIdx + 4));
+				indexBuffer.put((short) (indexBufferGroupIdx + 5));
+				indexBuffer.put((short) (indexBufferGroupIdx + 3));
+			}
 		}
 
-		GL20 gl = Gdx.gl;
-		indexBuffer.flip();
-		gl.glBindBuffer(GL20.GL_ELEMENT_ARRAY_BUFFER, model.elementBuffer);
-		gl.glBufferData(GL20.GL_ELEMENT_ARRAY_BUFFER, indexBuffer.remaining(), indexBuffer, GL20.GL_DYNAMIC_DRAW);
+		if (rebuildIndexBuffer) {
+			GL20 gl = Gdx.gl;
+			indexBuffer.flip();
+			gl.glBindBuffer(GL20.GL_ELEMENT_ARRAY_BUFFER, model.elementBuffer);
+			gl.glBufferData(GL20.GL_ELEMENT_ARRAY_BUFFER, indexBuffer.remaining() * 2, indexBuffer, GL20.GL_DYNAMIC_DRAW);
+			this.uploadedIndexCount = count;
+		}
 		// Update the buffer.
 		buffer.bindAndUpdate(count * LIGHTNING_EFFECT_INSTANCE_BYTES);
 	}

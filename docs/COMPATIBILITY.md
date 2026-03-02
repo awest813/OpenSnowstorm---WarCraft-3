@@ -53,15 +53,24 @@ add your results.*
 
 ## Known Issues and Workarounds
 
-### Light System Memory Leak
-The point-light system accumulates unreleased objects over time. On sessions
-longer than ~30 minutes on lower-end machines, expect increasing frame-time
-variance. Tracked for fix in Phase B.
+### Patch 1.30 / 1.31 data layouts
+These patches are still supported in principle, but they are tested less
+frequently than 1.22–1.29 and 1.32.10. If you use extracted `.mpq`/`.w3mod`
+folder layouts for these versions, regressions are possible after unrelated
+engine work. Please report map/asset edge cases with your startup capability
+report.
 
-### GLSL Version Mismatch
-Different subsystems (terrain, units, UI) were copied from different upstream
-sources and use different GLSL version directives. On some drivers this
-produces warnings in the log. Shader normalisation is planned for Phase B.
+### Headless/CI environments (Linux)
+Desktop launch paths that initialize LWJGL display mode require an active
+display server (X11/Wayland). For headless checks, use non-graphical launcher
+paths such as:
+
+```bash
+./gradlew :desktop:runGame -Pargs="-help -nolog"
+./gradlew :desktop:runGame -Pargs="-validate -nolog"
+```
+
+These commands validate launcher/config behavior without opening a game window.
 
 ### FLAC Audio Quality (Patch 1.32+)
 Warcraft III Reforged stores all audio as FLAC. LibGDX does not natively decode

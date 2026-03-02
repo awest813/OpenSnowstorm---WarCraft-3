@@ -259,7 +259,7 @@ public class CPathfindingProcessor {
 				this.goals = 0;
 				for (int i = goalCellX - 1; i <= (goalCellX + 1); i++) {
 					for (int j = goalCellY - 1; j <= (goalCellY + 1); j++) {
-						if ((j >= 0) && (j <= job.searchGraph.length)) {
+						if ((j >= 0) && (j < job.searchGraph.length)) {
 							if ((i >= 0) && (i < job.searchGraph[j].length)) {
 								final Node possibleGoal = job.searchGraph[j][i];
 								possibleGoal.touch(this.pathfindJobId);

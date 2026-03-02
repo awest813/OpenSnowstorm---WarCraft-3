@@ -1,29 +1,68 @@
 # Warsmash: The OpenMW for Warcraft III
 
-**Warsmash** is a free and open-source reimplementation of the Warcraft III game engine — the same goal that [OpenMW](https://openmw.org/) pursues for Morrowind. Just as OpenMW lets anyone run Morrowind mods, maps, and content on a modern, community-maintained engine, Warsmash aims to let anyone run Warcraft III maps and mods on a portable, hackable, AGPL-licensed engine that the modding community can improve forever.
+Warsmash is a free/open-source reimplementation of the Warcraft III engine —
+the same long-term mission [OpenMW](https://openmw.org/) took for Morrowind:
+full compatibility on a modern, community-maintained engine that can be studied,
+modified, and preserved indefinitely.
 
-Warsmash does not include Warcraft III assets. You must own a legal copy of Warcraft III and point Warsmash at it via the `warsmash.ini` configuration file.
+Warsmash ships **engine code only**. You must own Warcraft III assets and point
+Warsmash at them via `warsmash.ini`.
+
+---
+
+## Quick Start
+
+### 1) Clone and run tests
+
+```bash
+git clone https://github.com/Retera/WarsmashModEngine.git
+cd WarsmashModEngine
+./gradlew :core:test
+```
+
+### 2) Configure assets
+
+Edit `core/assets/warsmash.ini` and set the `[DataSources]` paths to your
+Warcraft III installation (details and patch-specific notes below).
+
+### 3) Launch
+
+```bash
+./gradlew :desktop:runGame
+```
+
+Useful launcher flags:
+
+- `-help` — show all options and exit
+- `-profile safe|balanced|high` — preset launch profile
+- `-window [width height]` — force windowed mode
+- `-fps <value>` — cap foreground/background FPS (`0` uncapped)
+- `-vsync` / `-novsync`
+- `-msaa <samples>` (including `-msaa 0` to disable)
+- `-validate` — validate `warsmash.ini` data-source paths and exit
+- `-ini <path>` — use a custom config
+- `-loadfile <path>` — auto-load map or TOC
+- `-nolog` — keep logs on console
 
 ---
 
 ## Vision
 
-Warcraft III has one of the richest modding histories of any RTS. Thousands of maps, custom campaigns, and entire game genres (tower defense, MOBA, RPG, survival) were born in the Warcraft III World Editor. Activision's stewardship of Warcraft III Reforged fractured the community and left modders on an unstable, closed platform.
+Warcraft III produced one of the most influential modding ecosystems in RTS
+history. Warsmash aims to keep that ecosystem alive with an open engine that:
 
-Warsmash exists to change that. The long-term goal is full feature parity with Warcraft III: Frozen Throne and Warcraft III: Reforged as an open engine that:
-
-- **Runs any WC3 map or mod** without requiring the original client
-- **Is portable** — Java + LibGDX targets Linux, Windows, and macOS from one codebase
-- **Is hackable** — every part of the rendering, simulation, and scripting pipeline is readable, modifiable, and testable
-- **Performs well** — per-frame allocations, light-system leaks, and shader inefficiencies are treated as bugs
-- **Documents everything** — compatibility matrix, profiling workflow, architecture decisions
-
-This is the same promise OpenMW made for Morrowind in 2008. We make it for Warcraft III.
+- runs WC3 maps/mods on modern systems,
+- is portable (Java + LibGDX: Linux/Windows/macOS),
+- is hackable and inspectable end-to-end,
+- treats frame-time stability and allocation churn as first-class bugs,
+- documents architecture/compatibility/perf tradeoffs in-repo.
 
 ---
 
 ### In the News
-Some news websites and social media claimed that Warsmash was taken down in 2022 via a Cease and Desist letter from Activision Blizzard, but that did not happen. The confusion started from a parody video on YouTube that was almost immediately taken down. If you have more concerns on that topic, feel free to join the Warsmash discord server and ask (linked below).
+Some social posts in 2022 claimed Warsmash was taken down by Activision
+Blizzard. That did **not** happen; confusion originated from a parody video
+takedown. If you want details, ask in Discord.
 
 ## Gameplay Example
 [![GAMEPLAY VIDEO](http://img.youtube.com/vi/EO-FDeQhFWc/0.jpg)](https://www.youtube.com/watch?v=EO-FDeQhFWc)
@@ -35,67 +74,37 @@ https://discord.com/invite/ucjftZ7x7H
 
 ## Project Status & Roadmap
 
-Warsmash is undergoing a structured modernization effort toward full OpenMW-equivalent coverage. Progress is tracked in
-[`docs/ENGINE_MODERNIZATION_ANALYSIS.md`](docs/ENGINE_MODERNIZATION_ANALYSIS.md)
-and [`CHANGELOG.md`](CHANGELOG.md).
+Modernization progress is tracked in:
+
+- [`docs/ENGINE_MODERNIZATION_ANALYSIS.md`](docs/ENGINE_MODERNIZATION_ANALYSIS.md)
+- [`CHANGELOG.md`](CHANGELOG.md)
 
 | Phase | Focus | Status |
 |-------|-------|--------|
 | **A** | Diagnostics, launcher QoL, CI, docs | **Complete** |
-| **B** | Light-system leak fix, GLSL shader normalization, parser consolidation design | **Complete** |
-| **C** | Per-frame allocation reduction, light-data caching, simulation budget tracking | **Complete** |
-| **D** | Parser unification, async asset pipeline, server hardening | **In Progress** |
-| **E** | Full JASS/Lua scripting coverage, map-format support to 1.32, networking | Planned |
-| **F** | Community modding layer (custom assets, asset overrides, mod manager) | Planned |
+| **B** | Light-system leak fix, GLSL normalization, parser consolidation design | **Complete** |
+| **C** | Render hot-path allocation/frame-time reductions | **Complete** |
+| **D** | Parser unification, server hardening, async asset pipeline | **In Progress** |
+| **E** | JASS/Lua coverage, map-format support to 1.32, multiplayer hardening | Planned |
+| **F** | Community modding layer (asset overrides, mod APIs/tooling) | Planned |
 
-### Phase A (Complete)
+### Recent engineering highlights
 
-Phase A delivered startup diagnostics, frame-pacing tracking, a full set of
-launcher flags (`-help`, `-window`, `-fps`, `-vsync/-novsync`, `-msaa`,
-`-validate`, `-ini`, `-loadfile`, `-nolog`), CI for Linux/Windows on Java 17/21,
-a Gradle upgrade, `CONTRIBUTING.md`, and `docs/COMPATIBILITY.md`.
+- Parser migration completed for runtime `MappedData` callers through canonical
+  `DataTable` paths.
+- `ObjectPool<T>` and `SimulationBudgetTracker` are wired into simulation
+  hotspots and per-tick diagnostics.
+- Launcher profile/flag precedence was polished for deterministic overrides, and
+  `-help` now exits before display initialization.
+- Lightning-effect batching fixed byte/count mismatches in GL index-buffer
+  uploads and avoids unnecessary index-buffer rebuilds when count is unchanged.
+- Unit reach checks now use squared-distance fast paths where equivalent; a
+  pathfinding bounds guard was hardened to avoid edge-case out-of-range access.
 
-### Phase B (Complete)
+### Current top priority
 
-Phase B fixed three areas of technical debt:
-
-1. **Light-system memory leak** — orphaned `LightInstance` objects accumulated
-   when culled model instances were pruned from the scene. Fixed: `Scene.update()`
-   now calls `removeLights()` before pruning.
-2. **GLSL shader version mismatch** — normalized everything to `#version 330 core`.
-3. **Parser consolidation design** — design doc for unifying the duplicate SLK/INI
-   parser stacks (`docs/PARSER_CONSOLIDATION_DESIGN.md`).
-
-### Phase C (Complete)
-
-Phase C targeted the render hot path to reduce per-frame CPU cost:
-
-1. **Light-data caching** — `LightInstance` now computes its packed 16-float GPU
-   block at most once per frame via a generation counter. The unit and terrain
-   light textures both read from the same cache, halving keyframe-sampler calls.
-2. **Single-buffer light packing** — `W3xSceneWorldLightManager` maintains
-   separate `unitLightBuffer` and `terrainLightBuffer` objects and fills both
-   in one pass, eliminating the shared-buffer reuse that forced sequential uploads.
-3. **Bone texture bulk copy** — `MdxComplexInstance.updateBoneTexture()` replaced
-   16 absolute-indexed `FloatBuffer.put(int, float)` calls per bone with a single
-   `put(float[], 0, 16)` that maps to a native `memcpy`, cutting JNI overhead for
-   all skinned models.
-4. **Frame-pacing p95/p99** — `FramePacingTracker` now reports 95th and 99th
-   percentile frame times in addition to average and max, making intermittent
-   frame spikes visible without a profiler.
-5. **`ObjectPool<T>`** — generic object pool utility (stack-backed, fixed capacity)
-   for reducing GC pressure in allocation-heavy hot paths.
-6. **`SimulationBudgetTracker`** — measures simulation-tick wall time and reports
-   budget overruns to stdout, giving a per-session view of simulation cost.
-
-### Phase D (In Progress)
-
-Phase D implements the Phase B parser-consolidation design and hardens the server
-and asset pipeline. Parser migration is now wired through the canonical
-`DataTable` backend for runtime `MappedData` callers, and `ObjectPool<T>` is now
-used in simulation allocation hotspots. The remaining major Phase D item is
-threaded async asset/map loading with progress feedback. See the
-[full roadmap](docs/ENGINE_MODERNIZATION_ANALYSIS.md).
+The primary remaining Phase D deliverable is threaded async map/asset loading
+with progress feedback.
 
 ---
 

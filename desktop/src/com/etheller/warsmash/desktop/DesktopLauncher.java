@@ -85,13 +85,15 @@ public class DesktopLauncher {
 		config.addIcon("resources/Icon128.png", Files.FileType.Internal);
 //		config.foregroundFPS = 0;
 //		config.backgroundFPS = 0;
-		final DisplayMode desktopDisplayMode = LwjglApplicationConfiguration.getDesktopDisplayMode();
-		config.width = desktopDisplayMode.width;
-		config.height = desktopDisplayMode.height;
+		config.width = DEFAULT_WINDOWED_WIDTH;
+		config.height = DEFAULT_WINDOWED_HEIGHT;
 		config.fullscreen = true;
 		String fileToLoad = null;
 		String iniPath = null;
 		boolean noLogs = false;
+		Boolean windowedMode = null;
+		Integer windowedWidth = null;
+		Integer windowedHeight = null;
 		Integer targetFps = null;
 		Integer msaaSamples = null;
 		Boolean vSyncEnabled = null;
@@ -105,16 +107,16 @@ public class DesktopLauncher {
 				profile = LaunchProfile.parse(arg[argIndex]);
 			}
 			else if ("-window".equals(arg[argIndex]) || "-windowed".equals(arg[argIndex])) {
-				config.fullscreen = false;
+				windowedMode = Boolean.TRUE;
 				if ((arg.length > (argIndex + 2)) && isInteger(arg[argIndex + 1]) && isInteger(arg[argIndex + 2])) {
 					argIndex++;
-					config.width = parseIntWithFallback(arg[argIndex], DEFAULT_WINDOWED_WIDTH, "window width");
+					windowedWidth = parseIntWithFallback(arg[argIndex], DEFAULT_WINDOWED_WIDTH, "window width");
 					argIndex++;
-					config.height = parseIntWithFallback(arg[argIndex], DEFAULT_WINDOWED_HEIGHT, "window height");
+					windowedHeight = parseIntWithFallback(arg[argIndex], DEFAULT_WINDOWED_HEIGHT, "window height");
 				}
 				else {
-					config.width = DEFAULT_WINDOWED_WIDTH;
-					config.height = DEFAULT_WINDOWED_HEIGHT;
+					windowedWidth = DEFAULT_WINDOWED_WIDTH;
+					windowedHeight = DEFAULT_WINDOWED_HEIGHT;
 				}
 			}
 			else if ("-nolog".equals(arg[argIndex])) {
@@ -147,6 +149,11 @@ public class DesktopLauncher {
 			applyProfile(profile, config);
 		}
 		// Individual flags override profile settings.
+		if (Boolean.TRUE.equals(windowedMode)) {
+			config.fullscreen = false;
+			config.width = (windowedWidth != null) ? windowedWidth : DEFAULT_WINDOWED_WIDTH;
+			config.height = (windowedHeight != null) ? windowedHeight : DEFAULT_WINDOWED_HEIGHT;
+		}
 		if (vSyncEnabled != null) {
 			config.vSyncEnabled = vSyncEnabled;
 		}
@@ -154,8 +161,13 @@ public class DesktopLauncher {
 			config.foregroundFPS = Math.max(0, targetFps);
 			config.backgroundFPS = Math.max(0, targetFps);
 		}
-		if ((msaaSamples != null) && (msaaSamples > 0)) {
-			config.samples = msaaSamples;
+		if (msaaSamples != null) {
+			config.samples = Math.max(0, msaaSamples);
+		}
+		if (config.fullscreen) {
+			final DisplayMode desktopDisplayMode = LwjglApplicationConfiguration.getDesktopDisplayMode();
+			config.width = desktopDisplayMode.width;
+			config.height = desktopDisplayMode.height;
 		}
 		if (!noLogs) {
 			new File("Logs").mkdir();

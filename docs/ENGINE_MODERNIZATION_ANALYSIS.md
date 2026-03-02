@@ -35,6 +35,9 @@ around four recurring concerns:
 - The desktop launcher hard-requires GL30/3.3 and full-screen defaults. Phase A
   added command-line flags (`-windowed`, `-fps`, `-vsync/-novsync`, `-msaa`) so
   users can self-tune compatibility.
+- Launcher argument handling now applies profile presets first and then explicit
+  overrides deterministically (`-window`, `-fps`, `-vsync/-novsync`, `-msaa`,
+  including `-msaa 0`), and `-help` exits before display-mode probing.
 - The README now explicitly documents the OpenMW-equivalent long-term vision.
 - Server business logic has comments acknowledging potential inefficiency and
   DDoS sensitivity in a hot path.
@@ -103,7 +106,7 @@ profiles can be introduced as a convenience layer in Phase D.
 ### 3.2 Medium-term wins
 
 - ~~Reduce per-frame allocations in render and simulation loops.~~ *(Phase C ✓ — see below)*
-- Add cache stats and hit/miss telemetry for frequently loaded assets. *(Phase D)*
+- ~~Add cache stats and hit/miss telemetry for frequently loaded assets.~~ *(Done — Phase D)*
 - Move expensive map/asset preparation toward asynchronous loading with progress
   feedback. *(Phase D)*
 
@@ -303,6 +306,9 @@ to be dropped in around `CSimulation.step()` in Phase D.
 | Smoke / unit tests | `ObjectPoolTest`, `SimulationBudgetTrackerTest`, `StartupDiagnosticsTest`, `AssetCacheTelemetryTest` | ✓ Done |
 | Parser unification — remaining runtime SLK/INI callers | `MappedData.load(String)` now parses through `DataTable`/`DataTableSource`; terrain, splat, and anim-sound table loads now use the canonical backend | ✓ Done |
 | Wire ObjectPool | Pool-backed scratch-set reuse in `CWorldCollision` rect enumeration and `CSimulation` timer dedupe validation | ✓ Done |
+| Launcher override polish | Explicit flags now reliably override profiles; `-help` exits before display probing; `-msaa 0` explicitly disables MSAA | ✓ Done |
+| 3D lightning batch accounting | Fixed short/byte mismatches in index-buffer sizing/upload and skip index-buffer rebuild when active lightning count is unchanged | ✓ Done |
+| 2D range/pathfinding polish | `CUnit.canReach(x,y,range)` moved to collision-aware squared-distance fast path; pathfinding goal-neighborhood bounds check fixed (`< length`) | ✓ Done |
 | Async asset pipeline | Move map/asset loading to background threads with progress feedback | Pending |
 
 At this point the asynchronous map/asset-loading pipeline is the primary

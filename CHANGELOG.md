@@ -15,6 +15,39 @@ Changes are grouped by category:
 
 ---
 
+## Performance/QoL/Docs Polish Pass (2026-03-02)
+
+### perf
+- **Lightning effect batch buffer accounting fixed**:
+  `LightningEffectBatch` now correctly treats index-buffer capacity as a count
+  of `short` elements (not bytes), uploads GL element buffers using byte sizes,
+  and skips index-buffer rebuild/upload work when lightning instance count is
+  unchanged across frames.
+- **Hot-path reach checks avoid sqrt**: `CUnit.canReach(x, y, range)` now uses
+  collision-aware squared-distance comparison for the non-pathing fast path.
+  This removes repeated scalar sqrt work from high-frequency range queries.
+
+### fix
+- **Pathfinding edge bounds guard**: `CPathfindingProcessor` goal-neighborhood
+  iteration now correctly uses `j < searchGraph.length` (not `<=`), preventing
+  a potential out-of-range access near map boundaries.
+
+### qol
+- **Launcher override semantics made deterministic**:
+  - profile presets are applied first;
+  - explicit flags then override (`-window`, `-fps`, `-vsync/-novsync`, `-msaa`);
+  - `-msaa 0` now explicitly disables MSAA.
+- **`-help` is now display-independent**: launcher help exits before desktop
+  display probing, allowing CLI help usage in headless/CI Linux environments.
+
+### docs
+- README reorganized with a clearer quick-start path, updated launcher flag
+  behavior, and a tighter status/priority snapshot.
+- `docs/ENGINE_MODERNIZATION_ANALYSIS.md` updated to include this polish pass in
+  Phase D status tracking and to mark asset cache telemetry as complete.
+- `docs/COMPATIBILITY.md` refreshed: removed stale fixed issues and added
+  current guidance for 1.30/1.31 data-layout caveats and headless launcher use.
+
 ## Phase D — Finalization Pass (2026-03-02)
 
 ### fix

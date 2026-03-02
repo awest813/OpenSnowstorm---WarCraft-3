@@ -3171,7 +3171,14 @@ public class CUnit extends CWidget {
 	}
 
 	public boolean canReach(final float x, final float y, final float range) {
-		return distance(x, y) <= range; // TODO use dist squared for performance
+		if (range < 0) {
+			return false;
+		}
+		final double maxDistance = range + this.unitType.getCollisionSize();
+		if (maxDistance < 0) {
+			return false;
+		}
+		return distanceSquaredNoCollision(x, y) <= (maxDistance * maxDistance);
 	}
 
 	public boolean canReachToPathing(final float range, final float rotationForPathing,
