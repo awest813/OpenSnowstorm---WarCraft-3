@@ -132,16 +132,17 @@ public class DesktopLauncher {
 		}
 		if (!noLogs) {
 			new File("Logs").mkdir();
+			final long logTimestamp = System.currentTimeMillis();
 			try {
 				System.setOut(new PrintStream(
-						new FileOutputStream(new File("Logs/" + System.currentTimeMillis() + ".out.log"))));
+						new FileOutputStream(new File("Logs/" + logTimestamp + ".out.log"))));
 			}
 			catch (final FileNotFoundException e) {
 				e.printStackTrace();
 			}
 			try {
 				System.setErr(new PrintStream(
-						new FileOutputStream(new File("Logs/" + System.currentTimeMillis() + ".err.log"))));
+						new FileOutputStream(new File("Logs/" + logTimestamp + ".err.log"))));
 			}
 			catch (final FileNotFoundException e) {
 				e.printStackTrace();

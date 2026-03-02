@@ -261,4 +261,14 @@ public abstract class ModelInstance extends Node {
 	public abstract void setReplaceableTextureHD(int replaceableTextureId, String replaceableTextureFile);
 
 	protected abstract void removeLights(Scene scene2);
+
+	/**
+	 * Called when this instance is permanently removed from a scene (not just
+	 * view-culled). Subclasses should override to perform additional teardown such
+	 * as stopping particle emitters. The default implementation delegates to
+	 * {@link #removeLights(Scene)}.
+	 */
+	protected void onInstanceRemoved(final Scene scene) {
+		removeLights(scene);
+	}
 }

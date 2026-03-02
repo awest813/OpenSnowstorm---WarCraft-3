@@ -41,9 +41,9 @@ public class Shaders {
 			"in vec4 a_extendedBones;\r\n" + //
 			"#endif\r\n" + //
 			"in float a_boneNumber;\r\n" + //
-			"mat4 getVertexGroupMatrix() {\r\n" + //
-			"  mat4 bone;\r\n" + //
-			"  // For the broken models out there, since the game supports this.\r\n" + //
+		"mat4 getVertexGroupMatrix() {\r\n" + //
+		"  mat4 bone = mat4(0.0);\r\n" + //
+		"  // For the broken models out there, since the game supports this.\r\n" + //
 			"  if (a_boneNumber > 0.0) {\r\n" + //
 			"    for (int i = 0; i < 4; i++) {\r\n" + //
 			"      if (a_bones[i] > 0.0) {\r\n" + //

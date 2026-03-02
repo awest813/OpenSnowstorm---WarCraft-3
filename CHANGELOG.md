@@ -15,6 +15,48 @@ Changes are grouped by category:
 
 ---
 
+## User-Testing Readiness (2026-03-02)
+
+### fix
+- **Particle emitters killed on view-cull**: `MdxComplexInstance.removeLights()`
+  previously called `particleEmitter.onRemove()` for every emitter when the
+  instance was pruned from the visible list during `Scene.update()`. This tore
+  down particle effects any time a unit scrolled off screen. The fix separates
+  concerns: `removeLights()` now only deregisters `LightInstance` objects;
+  particle-emitter teardown is moved to a new `onInstanceRemoved()` hook that is
+  called only from `Scene.removeInstance()` (permanent removal). View-culled
+  instances continue to deregister their lights correctly.
+- **Ghost batched instances after removal**: `Scene.removeInstance()` removed the
+  instance from `this.instances` but not from `this.batchedInstances`. A removed
+  batched unit could persist in the render list until the next full frame prune,
+  producing a one-frame ghost. `batchedInstances.remove(instance)` is now called
+  unconditionally.
+- **vsHd GLSL divide-by-zero with empty light texture**: The first light in the
+  `vsHd` vertex shader was read unconditionally via `0.5 / u_lightTextureHeight`,
+  which evaluates to `+Infinity` in GLSL when no lights are active
+  (`u_lightTextureHeight == 0`). The read is now guarded by
+  `if (u_lightTextureHeight > 0.5)` and `v_lightDir` is pre-initialised to
+  `vec4(0.0)` so the downstream fragment shader receives a safe value when the
+  scene has no dynamic lights.
+- **Uninitialised `mat4 bone` in vertex-group shader path**: The non-SKIN
+  `getVertexGroupMatrix()` function in `Shaders.transforms` declared `mat4 bone;`
+  without an initialiser. GLSL 3.30 core does not zero-initialise locals, so bone
+  accumulation operated on undefined memory and could produce corrupted vertex
+  positions for vertex-group-animated models. Changed to `mat4 bone = mat4(0.0);`.
+
+### qol
+- **Paired log file names**: `DesktopLauncher` now captures a single
+  `System.currentTimeMillis()` value and uses it for both the `.out.log` and
+  `.err.log` filenames, ensuring the two files from the same session share the
+  same timestamp prefix.
+
+### test
+- Added 3 new unit tests to `MdxShadersTest` covering the shader fixes:
+  `vsHd_firstLightIsGuardedByLightCount`, `vsHd_defaultsVLightDirToZero`, and
+  `transforms_nonSkinPath_boneMatrixInitialised`. Total test count: 23.
+
+---
+
 ## Phase B — Stability & Shader Normalization (2026-03-02)
 
 ### fix
