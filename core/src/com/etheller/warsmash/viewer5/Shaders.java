@@ -20,8 +20,8 @@ public class Shaders {
 			"                  texture2D(u_boneMap, vec2(column + u_vectorSize * 3.0, row)));\r\n" + //
 			"    }";
 	public static final String transforms = "#ifdef SKIN\r\n" + //
-			"attribute vec4 a_bones;\r\n" + //
-			"attribute vec4 a_weights;\r\n" + //
+			"in vec4 a_bones;\r\n" + //
+			"in vec4 a_weights;\r\n" + //
 			"void transformSkin(inout vec3 position, inout vec3 normal, inout vec3 tangent, inout vec3 binormal) {\r\n"
 			+ //
 			"  mat4 bone = mat4(0);\r\n" + //
@@ -36,11 +36,11 @@ public class Shaders {
 			"  binormal = rotation * binormal;\r\n" + //
 			"}\r\n" + //
 			"#else\r\n" + //
-			"attribute vec4 a_bones;\r\n" + //
+			"in vec4 a_bones;\r\n" + //
 			"#ifdef EXTENDED_BONES\r\n" + //
-			"attribute vec4 a_extendedBones;\r\n" + //
+			"in vec4 a_extendedBones;\r\n" + //
 			"#endif\r\n" + //
-			"attribute float a_boneNumber;\r\n" + //
+			"in float a_boneNumber;\r\n" + //
 			"mat4 getVertexGroupMatrix() {\r\n" + //
 			"  mat4 bone;\r\n" + //
 			"  // For the broken models out there, since the game supports this.\r\n" + //

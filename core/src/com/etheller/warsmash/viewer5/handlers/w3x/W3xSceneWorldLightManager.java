@@ -12,6 +12,8 @@ import com.etheller.warsmash.viewer5.gl.DataTexture;
 import com.etheller.warsmash.viewer5.handlers.mdx.LightInstance;
 
 public class W3xSceneWorldLightManager implements SceneLightManager, W3xSceneLightManager {
+	private static final int LIGHT_REPORT_INTERVAL = 3600; // ~60 s at 60 fps
+
 	public final List<LightInstance> lights;
 	private FloatBuffer lightDataCopyHeap;
 	private final DataTexture unitLightsTexture;
@@ -19,6 +21,7 @@ public class W3xSceneWorldLightManager implements SceneLightManager, W3xSceneLig
 	private final War3MapViewer viewer;
 	private int terrainLightCount;
 	private int unitLightCount;
+	private int updateTick = 0;
 
 	public W3xSceneWorldLightManager(final War3MapViewer viewer) {
 		this.viewer = viewer;
@@ -39,11 +42,17 @@ public class W3xSceneWorldLightManager implements SceneLightManager, W3xSceneLig
 	public void remove(final SceneLightInstance lightInstance) {
 		// TODO redesign to avoid cast
 		final LightInstance mdxLight = (LightInstance) lightInstance;
+		// ArrayList.remove() is a no-op if the element is absent, so this is idempotent.
 		this.lights.remove(mdxLight);
 	}
 
 	@Override
 	public void update() {
+		this.updateTick++;
+		if (this.updateTick >= LIGHT_REPORT_INTERVAL) {
+			System.out.printf("[LightManager] active dynamic lights=%d%n", this.lights.size());
+			this.updateTick = 0;
+		}
 		final int numberOfLights = this.lights.size() + 1;
 		final int bytesNeeded = numberOfLights * 4 * 16;
 		if (bytesNeeded > (this.lightDataCopyHeap.capacity() * 4)) {
