@@ -31,3 +31,6 @@ jobs:
 
       - name: Compile all subprojects
         run: ./gradlew assemble --no-daemon --stacktrace
+
+      - name: Run tests
+        run: ./gradlew :core:test --no-daemon --stacktrace
