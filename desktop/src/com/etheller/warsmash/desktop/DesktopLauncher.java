@@ -185,13 +185,6 @@ public class DesktopLauncher {
 			else {
 				unknownArgs.add(normalizedArgs[argIndex]);
 			}
-			else {
-				unknownArgs.add(arg[argIndex]);
-			}
-		}
-		if (!unknownArgs.isEmpty()) {
-			System.err.println("Warning: unknown launcher option(s): " + String.join(", ", unknownArgs));
-			System.err.println("Use -help to see available options.");
 		}
 		if (!unknownArgs.isEmpty()) {
 			System.err.println("Warning: unknown launcher option(s): " + String.join(", ", unknownArgs));
@@ -364,6 +357,32 @@ public class DesktopLauncher {
 		System.out.println("  INI: " + ((iniPath == null) ? "warsmash.ini" : iniPath));
 		System.out.println("  Auto-load: " + ((fileToLoad == null) ? "none" : fileToLoad));
 		System.out.println("  Logging: " + (noLogs ? "stdout/stderr console" : ("files in " + logDirectory)));
+	}
+
+	private static String[] normalizeArguments(final String[] arg) {
+		final List<String> normalized = new ArrayList<>();
+		for (final String value : arg) {
+			if (value.startsWith("--") && value.contains("=")) {
+				final int equalsIndex = value.indexOf('=');
+				final String optionName = value.substring(0, equalsIndex);
+				final String optionValue = value.substring(equalsIndex + 1);
+				normalized.add(optionName);
+				normalized.add(optionValue);
+			}
+			else {
+				normalized.add(value);
+			}
+		}
+		return normalized.toArray(new String[0]);
+	}
+
+	private static boolean isOptionRequiringValue(final String option) {
+		return "-profile".equals(option) || "--profile".equals(option) || "-width".equals(option)
+				|| "--width".equals(option) || "-height".equals(option) || "--height".equals(option)
+				|| "-fps".equals(option) || "--fps".equals(option) || "-msaa".equals(option)
+				|| "--msaa".equals(option) || "-loadfile".equals(option) || "--loadfile".equals(option)
+				|| "-ini".equals(option) || "--ini".equals(option) || "-logdir".equals(option)
+				|| "--logdir".equals(option);
 	}
 
 	private static String findIniPathArg(final String[] arg) {
