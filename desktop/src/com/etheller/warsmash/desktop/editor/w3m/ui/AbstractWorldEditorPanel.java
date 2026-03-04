@@ -103,8 +103,9 @@ public abstract class AbstractWorldEditorPanel extends JPanel {
 			final JToolBar toolBar) {
 		final JToggleButton objectEditorButton = new JToggleButton(
 				worldEditArt.getIcon("ToolBarIcon_Module_ObjectEditor"));
-		objectEditorButton
-				.setToolTipText(worldEditorData.getLocalizedString("WESTRING_MENU_OBJECTEDITOR").replace("&", ""));
+		final String tooltipString = worldEditorData.getLocalizedString("WESTRING_MENU_OBJECTEDITOR").replace("&", "");
+		objectEditorButton.setToolTipText(tooltipString);
+		objectEditorButton.getAccessibleContext().setAccessibleName(tooltipString);
 		objectEditorButton.setPreferredSize(new Dimension(24, 24));
 		objectEditorButton.setMargin(new Insets(1, 1, 1, 1));
 		objectEditorButton.setSelected(true);
@@ -136,7 +137,9 @@ public abstract class AbstractWorldEditorPanel extends JPanel {
 	public static JButton makeButton(final DataTable worldEditorData, final JToolBar toolBar, final String actionName,
 			final ImageIcon icon, final String tooltipKey) {
 		final JButton button = toolBar.add(new ToolbarButtonAction(actionName, icon));
-		button.setToolTipText(worldEditorData.getLocalizedString(tooltipKey).replace("&", ""));
+		final String tooltipString = worldEditorData.getLocalizedString(tooltipKey).replace("&", "");
+		button.setToolTipText(tooltipString);
+		button.getAccessibleContext().setAccessibleName(tooltipString);
 		button.setPreferredSize(new Dimension(24, 24));
 		button.setMargin(new Insets(1, 1, 1, 1));
 		button.setFocusable(false);
