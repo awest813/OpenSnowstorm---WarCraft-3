@@ -479,12 +479,38 @@ public class JSONArray implements Iterable<Object> {
             return "";
         }
         
-        StringBuilder sb = new StringBuilder(
-                   JSONObject.valueToString(this.myArrayList.get(0)));
+        final StringBuilder sb = new StringBuilder();
+        java.io.Writer w = new java.io.Writer() {
+            @Override
+            public void write(char[] cbuf, int off, int len) {
+                sb.append(cbuf, off, len);
+            }
 
-        for (int i = 1; i < len; i++) {
-            sb.append(separator)
-              .append(JSONObject.valueToString(this.myArrayList.get(i)));
+            @Override
+            public void write(String str) {
+                sb.append(str);
+            }
+
+            @Override
+            public void write(int c) {
+                sb.append((char) c);
+            }
+
+            @Override
+            public void flush() {}
+
+            @Override
+            public void close() {}
+        };
+        try {
+            JSONObject.writeValue(w, this.myArrayList.get(0), 0, 0);
+
+            for (int i = 1; i < len; i++) {
+                w.write(separator);
+                JSONObject.writeValue(w, this.myArrayList.get(i), 0, 0);
+            }
+        } catch (java.io.IOException e) {
+            throw new JSONException(e);
         }
         return sb.toString();
     }
