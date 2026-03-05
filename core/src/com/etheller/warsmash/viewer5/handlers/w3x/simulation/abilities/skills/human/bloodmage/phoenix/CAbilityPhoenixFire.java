@@ -27,6 +27,7 @@ public class CAbilityPhoenixFire extends AbstractGenericNoIconAbility {
 	private EnumSet<CTargetType> targetsAllowed;
 
 	private int lastAttackTurnTick;
+	private final EnumUnitsInRect enumUnitsInRect = new EnumUnitsInRect();
 
 	public CAbilityPhoenixFire(final int handleId, final War3ID code, final War3ID alias, final float initialDamage,
 			final float damagePerSecond, final float areaOfEffect, final float cooldown, final float duration,
@@ -48,22 +49,17 @@ public class CAbilityPhoenixFire extends AbstractGenericNoIconAbility {
 	public void onRemove(final CSimulation game, final CUnit unit) {
 	}
 
+	private final Rectangle recycleRect = new Rectangle();
+
 	@Override
 	public void onTick(final CSimulation game, final CUnit unit) {
 		final int cooldownTicks = (int) (this.cooldown / WarsmashConstants.SIMULATION_STEP_TIME);
 		final int gameTurnTick = game.getGameTurnTick();
 		if (gameTurnTick > (this.lastAttackTurnTick + cooldownTicks)) {
-			game.getWorldCollision().enumUnitsInRect(new Rectangle(unit.getX() - this.areaOfEffect,
-					unit.getY() - this.areaOfEffect, this.areaOfEffect * 2, this.areaOfEffect * 2), enumUnit -> {
-						if (unit.canReach(enumUnit, this.areaOfEffect)
-								&& enumUnit.canBeTargetedBy(game, unit, this.targetsAllowed)) {
-							unit.getCurrentAttacks().get(0).launch(game, unit, enumUnit, this.initialDamage,
-									CUnitAttackListener.DO_NOTHING);
-							this.lastAttackTurnTick = gameTurnTick;
-//							return true;
-						}
-						return false;
-					});
+			final EnumUnitsInRect enumFunction = this.enumUnitsInRect.reset(game, unit, gameTurnTick);
+			game.getWorldCollision().enumUnitsInRect(this.recycleRect.set(unit.getX() - this.areaOfEffect,
+					unit.getY() - this.areaOfEffect, this.areaOfEffect * 2, this.areaOfEffect * 2), enumFunction);
+			enumFunction.clear();
 		}
 	}
 
@@ -163,6 +159,42 @@ public class CAbilityPhoenixFire extends AbstractGenericNoIconAbility {
 
 	public void setTargetsAllowed(final EnumSet<CTargetType> targetsAllowed) {
 		this.targetsAllowed = targetsAllowed;
+	}
+
+	/**
+	 * ⚡ Bolt: Implemented cached inner class instead of allocating a CUnitEnumFunction
+	 * lambda per tick to save memory and avoid triggering GC pauses during spatial
+	 * query operations. Measurement: Reduces allocation footprint by 1 closure object
+	 * per cooldown tick. Clears internal references afterward to prevent memory leaks.
+	 */
+	private final class EnumUnitsInRect implements com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitEnumFunction {
+		private CSimulation game;
+		private CUnit unit;
+		private int gameTurnTick;
+
+		public EnumUnitsInRect reset(CSimulation game, CUnit unit, int gameTurnTick) {
+			this.game = game;
+			this.unit = unit;
+			this.gameTurnTick = gameTurnTick;
+			return this;
+		}
+
+		public void clear() {
+			this.game = null;
+			this.unit = null;
+		}
+
+		@Override
+		public boolean call(final CUnit enumUnit) {
+			if (unit.canReach(enumUnit, CAbilityPhoenixFire.this.areaOfEffect)
+					&& enumUnit.canBeTargetedBy(game, unit, CAbilityPhoenixFire.this.targetsAllowed)) {
+				unit.getCurrentAttacks().get(0).launch(game, unit, enumUnit, CAbilityPhoenixFire.this.initialDamage,
+						CUnitAttackListener.DO_NOTHING);
+				CAbilityPhoenixFire.this.lastAttackTurnTick = gameTurnTick;
+//				return true;
+			}
+			return false;
+		}
 	}
 
 }
