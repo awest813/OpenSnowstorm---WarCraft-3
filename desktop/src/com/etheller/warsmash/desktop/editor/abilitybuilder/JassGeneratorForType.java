@@ -86,13 +86,9 @@ public class JassGeneratorForType {
 					System.out.println(String.format("    constant string AB_LOCAL_STORE_KEY_%-34s= \"%s\"",
 							field.getName(), field.get(null)));
 				}
-				catch (final IllegalArgumentException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-				catch (final IllegalAccessException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+				catch (final IllegalArgumentException | IllegalAccessException e) {
+					System.err.println("Error generating Jass fields: " + e.getMessage());
+					e.printStackTrace(System.err);
 				}
 			}
 		}
@@ -104,13 +100,9 @@ public class JassGeneratorForType {
 					System.out.println(String.format("    constant string ABILITY_FIELD_%-34s= \"%s\"", field.getName(),
 							field.get(null)));
 				}
-				catch (final IllegalArgumentException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-				catch (final IllegalAccessException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+				catch (final IllegalArgumentException | IllegalAccessException e) {
+					System.err.println("Error generating Jass fields: " + e.getMessage());
+					e.printStackTrace(System.err);
 				}
 			}
 		}
