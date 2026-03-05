@@ -23,6 +23,7 @@ public class CBuffImmolationCaster extends AbstractCBuff {
 	private SimulationRenderComponent fx;
 	private int nextDamageTick;
 	private final Rectangle recycleRect = new Rectangle();
+	private final EnumUnitsInRect enumUnitsInRect = new EnumUnitsInRect();
 
 	public CBuffImmolationCaster(final int handleId, final War3ID alias, final CAbilityImmolation abilityImmolation) {
 		super(handleId, alias, alias);
@@ -49,19 +50,9 @@ public class CBuffImmolationCaster extends AbstractCBuff {
 			this.nextDamageTick = currentTick + delayTicks;
 			this.recycleRect.set(caster.getX() - areaOfEffect, caster.getY() - areaOfEffect, areaOfEffect * 2,
 					areaOfEffect * 2);
-			game.getWorldCollision().enumUnitsInRect(this.recycleRect, new CUnitEnumFunction() {
-				@Override
-				public boolean call(final CUnit enumUnit) {
-					if (caster.canReach(enumUnit, areaOfEffect) && enumUnit.canBeTargetedBy(game, caster,
-							CBuffImmolationCaster.this.abilityImmolation.getTargetsAllowed())) {
-						enumUnit.damage(game, caster, false, true, CAttackType.SPELLS, CDamageType.FIRE, CWeaponSoundTypeJass.WHOKNOWS.name(),
-								CBuffImmolationCaster.this.abilityImmolation.getDamagePerInterval());
-						game.createPersistentSpellEffectOnUnit(enumUnit, CBuffImmolationCaster.this.abilityImmolation.getBuffId(),
-								CEffectType.SPECIAL, 0).remove();
-					}
-					return false;
-				}
-			});
+			final EnumUnitsInRect enumFunction = this.enumUnitsInRect.reset(game, caster, areaOfEffect);
+			game.getWorldCollision().enumUnitsInRect(this.recycleRect, enumFunction);
+			enumFunction.clear();
 		}
 	}
 
@@ -127,6 +118,43 @@ public class CBuffImmolationCaster extends AbstractCBuff {
 	@Override
 	public boolean isTimedLifeBar() {
 		return false;
+	}
+
+	/**
+	 * ⚡ Bolt: Implemented cached inner class instead of allocating CUnitEnumFunction
+	 * closures per tick to save memory and avoid triggering GC pauses during spatial
+	 * query operations. Measurement: Reduces allocation footprint by 1 object per
+	 * active immolation per tick. Clears internal references afterward to prevent
+	 * memory leaks.
+	 */
+	private final class EnumUnitsInRect implements CUnitEnumFunction {
+		private CSimulation game;
+		private CUnit caster;
+		private float areaOfEffect;
+
+		public EnumUnitsInRect reset(CSimulation game, CUnit caster, float areaOfEffect) {
+			this.game = game;
+			this.caster = caster;
+			this.areaOfEffect = areaOfEffect;
+			return this;
+		}
+
+		public void clear() {
+			this.game = null;
+			this.caster = null;
+		}
+
+		@Override
+		public boolean call(final CUnit enumUnit) {
+			if (caster.canReach(enumUnit, areaOfEffect) && enumUnit.canBeTargetedBy(game, caster,
+					CBuffImmolationCaster.this.abilityImmolation.getTargetsAllowed())) {
+				enumUnit.damage(game, caster, false, true, CAttackType.SPELLS, CDamageType.FIRE, CWeaponSoundTypeJass.WHOKNOWS.name(),
+						CBuffImmolationCaster.this.abilityImmolation.getDamagePerInterval());
+				game.createPersistentSpellEffectOnUnit(enumUnit, CBuffImmolationCaster.this.abilityImmolation.getBuffId(),
+						CEffectType.SPECIAL, 0).remove();
+			}
+			return false;
+		}
 	}
 
 }

@@ -25,6 +25,7 @@ public class CBuffWhirlWindCaster extends CBuffTimed {
 	private int nextDamageTick;
 	private final Rectangle recycleRect = new Rectangle();
 	private StateModBuff disableAttack;
+	private final EnumUnitsInRect enumUnitsInRect = new EnumUnitsInRect();
 
 	public CBuffWhirlWindCaster(final int handleId, final War3ID alias, final CAbilityWhirlWind abilityImmolation,
 			float duration) {
@@ -60,18 +61,9 @@ public class CBuffWhirlWindCaster extends CBuffTimed {
 			this.nextDamageTick = currentTick + delayTicks;
 			this.recycleRect.set(caster.getX() - areaOfEffect, caster.getY() - areaOfEffect, areaOfEffect * 2,
 					areaOfEffect * 2);
-			game.getWorldCollision().enumUnitsInRect(this.recycleRect, new CUnitEnumFunction() {
-				@Override
-				public boolean call(final CUnit enumUnit) {
-					if (caster.canReach(enumUnit, areaOfEffect) && enumUnit.canBeTargetedBy(game, caster,
-							CBuffWhirlWindCaster.this.abilityImmolation.getTargetsAllowed())) {
-						enumUnit.damage(game, caster, false, true, CAttackType.SPELLS, CDamageType.NORMAL,
-								CWeaponSoundTypeJass.WHOKNOWS.name(),
-								CBuffWhirlWindCaster.this.abilityImmolation.getDamagePerSecond());
-					}
-					return false;
-				}
-			});
+			final EnumUnitsInRect enumFunction = this.enumUnitsInRect.reset(game, caster, areaOfEffect);
+			game.getWorldCollision().enumUnitsInRect(this.recycleRect, enumFunction);
+			enumFunction.clear();
 		}
 	}
 
@@ -127,6 +119,42 @@ public class CBuffWhirlWindCaster extends CBuffTimed {
 	@Override
 	public boolean isTimedLifeBar() {
 		return false;
+	}
+
+	/**
+	 * ⚡ Bolt: Implemented cached inner class instead of allocating CUnitEnumFunction
+	 * closures per tick to save memory and avoid triggering GC pauses during spatial
+	 * query operations. Measurement: Reduces allocation footprint by 1 object per
+	 * active whirlwind per tick. Clears internal references afterward to prevent
+	 * memory leaks.
+	 */
+	private final class EnumUnitsInRect implements CUnitEnumFunction {
+		private CSimulation game;
+		private CUnit caster;
+		private float areaOfEffect;
+
+		public EnumUnitsInRect reset(CSimulation game, CUnit caster, float areaOfEffect) {
+			this.game = game;
+			this.caster = caster;
+			this.areaOfEffect = areaOfEffect;
+			return this;
+		}
+
+		public void clear() {
+			this.game = null;
+			this.caster = null;
+		}
+
+		@Override
+		public boolean call(final CUnit enumUnit) {
+			if (caster.canReach(enumUnit, areaOfEffect) && enumUnit.canBeTargetedBy(game, caster,
+					CBuffWhirlWindCaster.this.abilityImmolation.getTargetsAllowed())) {
+				enumUnit.damage(game, caster, false, true, CAttackType.SPELLS, CDamageType.NORMAL,
+						CWeaponSoundTypeJass.WHOKNOWS.name(),
+						CBuffWhirlWindCaster.this.abilityImmolation.getDamagePerSecond());
+			}
+			return false;
+		}
 	}
 
 }

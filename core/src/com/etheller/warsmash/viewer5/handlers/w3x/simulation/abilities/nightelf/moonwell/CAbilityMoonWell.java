@@ -38,6 +38,7 @@ public class CAbilityMoonWell extends CAbilitySpellBase implements CAutocastAbil
 	private int lastAutoCastCheckTick = 0;
 
 	private final Rectangle recycleRect = new Rectangle();
+	private final EnumUnitsInRect enumUnitsInRect = new EnumUnitsInRect();
 
 	private float areaOfEffect;
 
@@ -121,18 +122,11 @@ public class CAbilityMoonWell extends CAbilitySpellBase implements CAutocastAbil
 
 	private void checkAutoCast(final CSimulation game, final CUnit unit) {
 		final float castRange = getCastRange();
+		final EnumUnitsInRect enumFunction = this.enumUnitsInRect.reset(game, unit, castRange);
 		game.getWorldCollision().enumUnitsInRect(
 				this.recycleRect.set(unit.getX() - castRange, unit.getY() - castRange, castRange * 2, castRange * 2),
-				new CUnitEnumFunction() {
-					@Override
-					public boolean call(final CUnit enumUnit) {
-						if (unit.canReach(enumUnit, castRange)
-								&& enumUnit.canBeTargetedBy(game, unit, getTargetsAllowed())) {
-							unit.order(game, getBaseOrderId(), enumUnit);
-						}
-						return false;
-					}
-				});
+				enumFunction);
+		enumFunction.clear();
 	}
 
 	@Override
@@ -271,6 +265,40 @@ public class CAbilityMoonWell extends CAbilitySpellBase implements CAutocastAbil
 	public void checkCanAutoTargetNoTarget(CSimulation game, CUnit unit, int orderId,
 			AbilityTargetCheckReceiver<Void> receiver) {
 		receiver.orderIdNotAccepted();
+	}
+
+	/**
+	 * ⚡ Bolt: Implemented cached inner class instead of allocating CUnitEnumFunction
+	 * closures during autocast checks to save memory and avoid triggering GC pauses
+	 * during spatial query operations. Measurement: Reduces allocation footprint by
+	 * 1 object per Moonwell per check tick. Clears internal references afterward to
+	 * prevent memory leaks.
+	 */
+	private final class EnumUnitsInRect implements CUnitEnumFunction {
+		private CSimulation game;
+		private CUnit unit;
+		private float castRange;
+
+		public EnumUnitsInRect reset(CSimulation game, CUnit unit, float castRange) {
+			this.game = game;
+			this.unit = unit;
+			this.castRange = castRange;
+			return this;
+		}
+
+		public void clear() {
+			this.game = null;
+			this.unit = null;
+		}
+
+		@Override
+		public boolean call(final CUnit enumUnit) {
+			if (unit.canReach(enumUnit, castRange)
+					&& enumUnit.canBeTargetedBy(game, unit, getTargetsAllowed())) {
+				unit.order(game, getBaseOrderId(), enumUnit);
+			}
+			return false;
+		}
 	}
 
 }

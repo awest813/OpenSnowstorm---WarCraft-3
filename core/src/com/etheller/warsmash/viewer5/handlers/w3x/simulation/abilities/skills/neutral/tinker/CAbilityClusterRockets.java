@@ -42,6 +42,7 @@ public class CAbilityClusterRockets extends CAbilityPointTargetSpellBase {
 	private int missileLaunchingEndTick;
 	private int missileLaunchDurationTicks;
 	private War3ID buffId;
+	private final EnumUnitsInRect enumUnitsInRect = new EnumUnitsInRect();
 
 	public CAbilityClusterRockets(final int handleId, final War3ID alias) {
 		super(handleId, alias);
@@ -121,34 +122,25 @@ public class CAbilityClusterRockets extends CAbilityPointTargetSpellBase {
 		}
 		if (gameTurnTick >= this.nextWaveTick) {
 			this.currentWave++;
-			final List<CUnit> damageTargets = new ArrayList<>();
+			final EnumUnitsInRect enumFunction = this.enumUnitsInRect.reset(simulation, unit, target);
 			simulation.getWorldCollision()
 					.enumUnitsInRect(this.recycleRect.set(target.getX() - this.areaOfEffect,
 							target.getY() - this.areaOfEffect, this.areaOfEffect * 2, this.areaOfEffect * 2),
-							new CUnitEnumFunction() {
-								@Override
-								public boolean call(final CUnit possibleTarget) {
-									if (possibleTarget.canReach(target, CAbilityClusterRockets.this.areaOfEffect)
-											&& possibleTarget.canBeTargetedBy(simulation, unit, getTargetsAllowed())) {
-										damageTargets.add(possibleTarget);
-									}
-									return false;
-								}
-							});
+							enumFunction);
 			if (currentWave == 1) {
 				// stun
-				for (final CUnit damageTarget : damageTargets) {
+				for (final CUnit damageTarget : enumFunction.damageTargets) {
 					damageTarget.add(simulation, new CBuffStun(simulation.getHandleIdAllocator().createId(), buffId,
 							getDurationForTarget(damageTarget)));
 				}
 			}
 			else {
 				float damagePerTarget = this.damage;
-				if ((damagePerTarget * damageTargets.size()) > maximumDamagePerWave) {
-					damagePerTarget = maximumDamagePerWave / damageTargets.size();
+				if ((damagePerTarget * enumFunction.damageTargets.size()) > maximumDamagePerWave) {
+					damagePerTarget = maximumDamagePerWave / enumFunction.damageTargets.size();
 				}
 				final float damagePerTargetBuilding = damagePerTarget * (buildingReduction);
-				for (final CUnit damageTarget : damageTargets) {
+				for (final CUnit damageTarget : enumFunction.damageTargets) {
 					float thisTargetDamage;
 					if (damageTarget.isBuilding()) {
 						thisTargetDamage = damagePerTargetBuilding;
@@ -160,6 +152,7 @@ public class CAbilityClusterRockets extends CAbilityPointTargetSpellBase {
 							CWeaponSoundTypeJass.WHOKNOWS.name(), thisTargetDamage);
 				}
 			}
+			enumFunction.clear();
 			this.nextWaveTick = gameTurnTick
 					+ (int) StrictMath.ceil(damageInterval / WarsmashConstants.SIMULATION_STEP_TIME);
 		}
@@ -169,6 +162,43 @@ public class CAbilityClusterRockets extends CAbilityPointTargetSpellBase {
 	@Override
 	public float getUIAreaOfEffect() {
 		return this.areaOfEffect;
+	}
+
+	/**
+	 * ⚡ Bolt: Implemented cached inner class instead of allocating CUnitEnumFunction
+	 * closures and ArrayLists per wave to save memory and avoid triggering GC pauses
+	 * during spatial query operations. Measurement: Reduces allocation footprint by
+	 * 2 objects per wave. Clears internal references afterward to prevent memory leaks.
+	 */
+	private final class EnumUnitsInRect implements CUnitEnumFunction {
+		private CSimulation simulation;
+		private CUnit unit;
+		private AbilityTarget target;
+		private final List<CUnit> damageTargets = new ArrayList<>();
+
+		public EnumUnitsInRect reset(CSimulation simulation, CUnit unit, AbilityTarget target) {
+			this.simulation = simulation;
+			this.unit = unit;
+			this.target = target;
+			this.damageTargets.clear();
+			return this;
+		}
+
+		public void clear() {
+			this.simulation = null;
+			this.unit = null;
+			this.target = null;
+			this.damageTargets.clear();
+		}
+
+		@Override
+		public boolean call(final CUnit possibleTarget) {
+			if (possibleTarget.canReach(target, CAbilityClusterRockets.this.areaOfEffect)
+					&& possibleTarget.canBeTargetedBy(simulation, unit, getTargetsAllowed())) {
+				damageTargets.add(possibleTarget);
+			}
+			return false;
+		}
 	}
 
 }

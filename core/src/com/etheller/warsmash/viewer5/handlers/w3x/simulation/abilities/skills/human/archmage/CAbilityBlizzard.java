@@ -36,6 +36,7 @@ public class CAbilityBlizzard extends CAbilityPointTargetSpellBase {
 	private int nextWaveTick;
 	private boolean waveForDamage = false;
 	private final Rectangle recycleRect = new Rectangle();
+	private final EnumUnitsInRect enumUnitsInRect = new EnumUnitsInRect();
 
 	public CAbilityBlizzard(final int handleId, final War3ID alias) {
 		super(handleId, alias);
@@ -78,27 +79,17 @@ public class CAbilityBlizzard extends CAbilityPointTargetSpellBase {
 				this.currentWave++;
 				waveDelay = this.waveDelay;
 				this.waveForDamage = false;
-				final List<CUnit> damageTargets = new ArrayList<>();
+				final EnumUnitsInRect enumFunction = this.enumUnitsInRect.reset(simulation, caster, target);
 				simulation.getWorldCollision()
 						.enumUnitsInRect(this.recycleRect.set(target.getX() - this.areaOfEffect,
 								target.getY() - this.areaOfEffect, this.areaOfEffect * 2, this.areaOfEffect * 2),
-								new CUnitEnumFunction() {
-									@Override
-									public boolean call(final CUnit possibleTarget) {
-										if (possibleTarget.canReach(target, CAbilityBlizzard.this.areaOfEffect)
-												&& possibleTarget.canBeTargetedBy(simulation, caster,
-														getTargetsAllowed())) {
-											damageTargets.add(possibleTarget);
-										}
-										return false;
-									}
-								});
+								enumFunction);
 				float damagePerTarget = this.damage;
-				if ((damagePerTarget * damageTargets.size()) > maximumDamagePerWave) {
-					damagePerTarget = maximumDamagePerWave / damageTargets.size();
+				if ((damagePerTarget * enumFunction.damageTargets.size()) > maximumDamagePerWave) {
+					damagePerTarget = maximumDamagePerWave / enumFunction.damageTargets.size();
 				}
 				final float damagePerTargetBuilding = damagePerTarget * (buildingReduction);
-				for (final CUnit damageTarget : damageTargets) {
+				for (final CUnit damageTarget : enumFunction.damageTargets) {
 					float thisTargetDamage;
 					if (damageTarget.isBuilding()) {
 						thisTargetDamage = damagePerTargetBuilding;
@@ -109,6 +100,7 @@ public class CAbilityBlizzard extends CAbilityPointTargetSpellBase {
 					damageTarget.damage(simulation, caster, false, true, CAttackType.SPELLS, CDamageType.COLD,
 							CWeaponSoundTypeJass.WHOKNOWS.name(), thisTargetDamage);
 				}
+				enumFunction.clear();
 			}
 			else {
 				final Random seededRandom = simulation.getSeededRandom();
@@ -134,6 +126,44 @@ public class CAbilityBlizzard extends CAbilityPointTargetSpellBase {
 	@Override
 	public float getUIAreaOfEffect() {
 		return this.areaOfEffect;
+	}
+
+	/**
+	 * ⚡ Bolt: Implemented cached inner class instead of allocating CUnitEnumFunction
+	 * closures and ArrayLists per wave to save memory and avoid triggering GC pauses
+	 * during spatial query operations. Measurement: Reduces allocation footprint by
+	 * 2 objects per wave. Clears internal references afterward to prevent memory leaks.
+	 */
+	private final class EnumUnitsInRect implements CUnitEnumFunction {
+		private CSimulation simulation;
+		private CUnit caster;
+		private AbilityTarget target;
+		private final List<CUnit> damageTargets = new ArrayList<>();
+
+		public EnumUnitsInRect reset(CSimulation simulation, CUnit caster, AbilityTarget target) {
+			this.simulation = simulation;
+			this.caster = caster;
+			this.target = target;
+			this.damageTargets.clear();
+			return this;
+		}
+
+		public void clear() {
+			this.simulation = null;
+			this.caster = null;
+			this.target = null;
+			this.damageTargets.clear();
+		}
+
+		@Override
+		public boolean call(final CUnit possibleTarget) {
+			if (possibleTarget.canReach(target, CAbilityBlizzard.this.areaOfEffect)
+					&& possibleTarget.canBeTargetedBy(simulation, caster,
+							getTargetsAllowed())) {
+				damageTargets.add(possibleTarget);
+			}
+			return false;
+		}
 	}
 
 }
