@@ -15,6 +15,12 @@ Changes are grouped by category:
 
 ---
 
+## Campaign Map Startup Reliability Pass (2026-03-06)
+
+### fix
+- **Campaign/skirmish startup failure handling hardened**: `MenuUI` now validates map preloading before hiding menu navigation state for campaign mission launches and direct `startMap(...)` calls. Failed preloads no longer proceed into a broken transition path; they now show `NETERROR_MAPFILEINCOMPLETE` and keep the menu usable.
+- **Unified guarded map-config preload path**: a new `tryLoadAndCacheMapConfigs(...)` helper centralizes exception-safe handling for `loadAndCacheMapConfigs(...)`, covering both checked `IOException` and runtime parse/load failures encountered during map config/JASS loading.
+
 ## Phase D — Async Loading Pipeline Completion (2026-03-02)
 
 ### perf

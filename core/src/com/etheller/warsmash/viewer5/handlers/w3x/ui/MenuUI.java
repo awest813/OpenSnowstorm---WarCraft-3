@@ -1316,6 +1316,9 @@ public class MenuUI {
 						missionSelectMenuUI.addButton(mission.getHeader(), mission.getMissionName(), new Runnable() {
 							@Override
 							public void run() {
+								if (!tryLoadAndCacheMapConfigs(mission.getMapFilename())) {
+									return;
+								}
 								MenuUI.this.campaignMenu.setVisible(false);
 								MenuUI.this.campaignBackButton.setVisible(false);
 								MenuUI.this.missionSelectFrame.setVisible(false);
@@ -1324,12 +1327,6 @@ public class MenuUI {
 								MenuUI.this.campaignRootMenuUI.setVisible(false);
 								MenuUI.this.currentMissionSelectMenuUI.setVisible(false);
 								MenuUI.this.campaignFade.setSequence("Birth");
-								try {
-									loadAndCacheMapConfigs(mission.getMapFilename());
-								}
-								catch (final IOException e) {
-									e.printStackTrace();
-								}
 								int localPlayerIndex = -1;
 								for (int i = 0; i < WarsmashConstants.MAX_PLAYERS; i++) {
 									final CBasePlayer player = MenuUI.this.currentMapConfig.getPlayer(i);
@@ -1716,14 +1713,12 @@ public class MenuUI {
 	}
 
 	public void startMap(final String mapFilename) {
-		this.mainMenuFrame.setVisible(false);
+		if (!tryLoadAndCacheMapConfigs(mapFilename)) {
+			this.mainMenuFrame.setVisible(true);
+			return;
+		}
 
-		try {
-			loadAndCacheMapConfigs(mapFilename);
-		}
-		catch (final IOException e) {
-			e.printStackTrace();
-		}
+		this.mainMenuFrame.setVisible(false);
 
 		MenuUI.this.campaignMenu.setVisible(false);
 		MenuUI.this.campaignBackButton.setVisible(false);
@@ -1769,6 +1764,18 @@ public class MenuUI {
 		Jass2.loadConfig(map, MenuUI.this.uiViewport, MenuUI.this.uiScene, MenuUI.this.rootFrame, war3MapConfig,
 				WarsmashConstants.JASS_FILE_LIST).config();
 		MenuUI.this.currentMapConfig = war3MapConfig;
+	}
+
+	private boolean tryLoadAndCacheMapConfigs(final String mapFilename) {
+		try {
+			loadAndCacheMapConfigs(mapFilename);
+			return true;
+		}
+		catch (final IOException | RuntimeException e) {
+			e.printStackTrace();
+			this.dialog.showError("NETERROR_MAPFILEINCOMPLETE", null);
+			return false;
+		}
 	}
 
 	private void setCurrentProfile(final String selectedProfileName) {
