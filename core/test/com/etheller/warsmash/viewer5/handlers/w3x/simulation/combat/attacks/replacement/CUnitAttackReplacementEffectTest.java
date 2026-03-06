@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CAttackType;
-import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CDamageType;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CDamageType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.CWeaponType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.listeners.CUnitAttackEffectListenerStacking;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.combat.attacks.listeners.CUnitAttackPreDamageListener;
@@ -64,7 +64,7 @@ class CUnitAttackReplacementEffectTest {
 				final CAttackType attackType,
 				final CDamageType damageType,
 				final CUnitAttackPreDamageListenerDamageModResult result) {
-			return CUnitAttackEffectListenerStacking.ALLOW_STACKING;
+			return new CUnitAttackEffectListenerStacking();
 		}
 	}
 }
