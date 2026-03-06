@@ -42,6 +42,20 @@ public class CAbilityAbilityBuilderAuraTemplate extends AbilityGenericSingleIcon
 	private final int LEAVE_GROUP_TICKS = (int) (3 / WarsmashConstants.SIMULATION_STEP_TIME);
 	private final int ENTER_GROUP_TICKS = (int) (0.4 / WarsmashConstants.SIMULATION_STEP_TIME);
 	private final int RESET_GROUP_TICKS = LEAVE_GROUP_TICKS * 2;
+
+	// ⚡ Bolt: Cache enum function to prevent per-tick garbage collection overhead
+	private CSimulation tickGame;
+	private CUnit tickUnit;
+	private final CUnitEnumFunction enterAuraEnumFunction = new CUnitEnumFunction() {
+		@Override
+		public boolean call(final CUnit enumUnit) {
+			if (tickUnit.canReach(enumUnit, range) && enumUnit.canBeTargetedBy(tickGame, tickUnit, targetsAllowed)
+					&& !auraGroup.contains(enumUnit)) {
+				addUnitToAura(tickGame, enumUnit);
+			}
+			return false;
+		}
+	};
 	
 	public CAbilityAbilityBuilderAuraTemplate(int handleId, War3ID code, War3ID alias,
 			List<CAbilityTypeAbilityBuilderLevelData> levelData, Map<String, Object> localStore,
@@ -97,16 +111,13 @@ public class CAbilityAbilityBuilderAuraTemplate extends AbilityGenericSingleIcon
 		}
 		if (loopTick % ENTER_GROUP_TICKS == 0) {
 			recycleRect.set(unit.getX() - range, unit.getY() - range, range * 2, range * 2);
-			game.getWorldCollision().enumUnitsInRect(recycleRect, new CUnitEnumFunction() {
-				@Override
-				public boolean call(final CUnit enumUnit) {
-					if (unit.canReach(enumUnit, range) && enumUnit.canBeTargetedBy(game, unit, targetsAllowed)
-							&& !auraGroup.contains(enumUnit)) {
-						addUnitToAura(game, enumUnit);
-					}
-					return false;
-				}
-			});
+
+			// ⚡ Bolt: Explicitly set parameters for cached callback and clear after to prevent memory leak
+			this.tickGame = game;
+			this.tickUnit = unit;
+			game.getWorldCollision().enumUnitsInRect(recycleRect, enterAuraEnumFunction);
+			this.tickGame = null;
+			this.tickUnit = null;
 		}
 		loopTick++;
 		loopTick = loopTick % (RESET_GROUP_TICKS);
