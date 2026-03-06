@@ -431,17 +431,17 @@ public abstract class CUnitAttack {
 
 		for (final CUnitAttackPreDamageListenerPriority priority : CUnitAttackPreDamageListenerPriority.values()) {
 			if (allowContinue.isAllowStacking()) {
-				if (priority == CUnitAttackPreDamageListenerPriority.ATTACKREPLACEMENT && this.attackReplacement != null && this.attackReplacement.getPreDamageListeners() != null) {
-					for (CUnitAttackPreDamageListener listener : this.attackReplacement.getPreDamageListeners()) {
-						if (allowContinue.isAllowSamePriorityStacking()) {
-							allowContinue = listener.onAttack(simulation, attacker, target, weaponType, attackType, weaponType.getDamageType(), result);
-						}
-					}
-				} else {
-					for (CUnitAttackPreDamageListener listener : attacker.getPreDamageListenersForPriority(priority)) {
-						if (allowContinue.isAllowSamePriorityStacking()) {
-							allowContinue = listener.onAttack(simulation, attacker, target, weaponType, attackType, weaponType.getDamageType(), result);
-						}
+				final List<CUnitAttackPreDamageListener> listeners;
+				if (priority == CUnitAttackPreDamageListenerPriority.ATTACKREPLACEMENT && this.attackReplacement != null) {
+					listeners = this.attackReplacement.getPreDamageListeners();
+				}
+				else {
+					listeners = attacker.getPreDamageListenersForPriority(priority);
+				}
+				for (final CUnitAttackPreDamageListener listener : listeners) {
+					if (allowContinue.isAllowSamePriorityStacking()) {
+						allowContinue = listener.onAttack(simulation, attacker, target, weaponType, attackType,
+								weaponType.getDamageType(), result);
 					}
 				}
 			}
