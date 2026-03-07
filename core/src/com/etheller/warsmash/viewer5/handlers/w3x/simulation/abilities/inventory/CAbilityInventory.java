@@ -152,6 +152,10 @@ public class CAbilityInventory extends AbstractGenericNoIconAbility {
 		return this.itemsHeld[slotIndex];
 	}
 
+	public int getCapacity() {
+		return this.itemsHeld.length;
+	}
+
 	public boolean isDropItemsOnDeath() {
 		return this.dropItemsOnDeath;
 	}

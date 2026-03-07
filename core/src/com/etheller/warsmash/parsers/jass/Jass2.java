@@ -1533,6 +1533,35 @@ public class Jass2 {
 						}
 						return new HandleJassValue(unitType, group.get(0));
 					});
+			jassProgramVisitor.getJassNativeManager().createNative("CountUnitsInGroup",
+					(arguments, globalScope, triggerScope) -> {
+						final List<CUnit> group = nullable(arguments, 0,
+								ObjectJassValueVisitor.<List<CUnit>>getInstance());
+						return IntegerJassValue.of(group != null ? group.size() : 0);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GroupEnumUnitsSelected",
+					(arguments, globalScope, triggerScope) -> {
+						// Selection state is a UI concern; return empty group
+						final List<CUnit> group = arguments.get(0)
+								.visit(ObjectJassValueVisitor.<List<CUnit>>getInstance());
+						group.clear();
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetRandomUnit",
+					(arguments, globalScope, triggerScope) -> {
+						// Weighted random unit selection is not implemented; return null
+						return unitType.getNullValue();
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("ChooseRandomCreep",
+					(arguments, globalScope, triggerScope) -> {
+						// Random creep selection by level is not implemented; return 0
+						return IntegerJassValue.of(0);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("ChooseRandomNPBuilding",
+					(arguments, globalScope, triggerScope) -> {
+						// Random NP-building selection is not implemented; return 0
+						return IntegerJassValue.of(0);
+					});
 			// ============================================================================
 			// Force API
 			//
@@ -2144,6 +2173,20 @@ public class Jass2 {
 					(arguments, globalScope, triggerScope) -> {
 						return trackableType.getNullValue();
 					});
+			// Chat event — firing is not yet implemented; registration is accepted so
+			// scripts do not crash when they add chat listeners.
+			jassProgramVisitor.getJassNativeManager().createNative("TriggerRegisterPlayerChatEvent",
+					(arguments, globalScope, triggerScope) -> {
+						return eventType.getNullValue();
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetEventPlayerChatString",
+					(arguments, globalScope, triggerScope) -> {
+						return new StringJassValue("");
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetEventPlayerChatStringMatched",
+					(arguments, globalScope, triggerScope) -> {
+						return new StringJassValue("");
+					});
 			jassProgramVisitor.getJassNativeManager().createNative("GetClickedButton",
 					(arguments, globalScope, triggerScope) -> {
 						return new HandleJassValue(buttonType,
@@ -2435,8 +2478,105 @@ public class Jass2 {
 						final CSound sound = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
 						return IntegerJassValue.of((int) (sound.getPredictedDuration() * 1000)); // PRONE TO DESYNC (?)
 					});
-
-			// text tags
+			jassProgramVisitor.getJassNativeManager().createNative("StopSound",
+					(arguments, globalScope, triggerScope) -> {
+						final CSound soundHandle = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (soundHandle != null) {
+							soundHandle.stop();
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("KillSoundWhenDone",
+					(arguments, globalScope, triggerScope) -> {
+						// sounds already stop naturally when done in our implementation
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetSoundIsPlaying",
+					(arguments, globalScope, triggerScope) -> {
+						final CSound soundHandle = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (soundHandle == null) {
+							return BooleanJassValue.FALSE;
+						}
+						return BooleanJassValue.of(soundHandle.isPlaying());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetSoundIsLoading",
+					(arguments, globalScope, triggerScope) -> {
+						// sounds are loaded synchronously; never in a loading state
+						return BooleanJassValue.FALSE;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetSoundFileDuration",
+					(arguments, globalScope, triggerScope) -> {
+						final String soundFile = nullable(arguments, 0, StringJassValueVisitor.getInstance());
+						if (soundFile == null) {
+							return IntegerJassValue.of(0);
+						}
+						try {
+							final Sound s = UnitSound.createSound(war3MapViewer.mapMpq, soundFile);
+							if (s != null) {
+								return IntegerJassValue
+										.of((int) (com.etheller.warsmash.viewer5.gl.Extensions.audio.getDuration(s)
+												* 1000));
+							}
+						}
+						catch (final Exception ignored) {
+						}
+						return IntegerJassValue.of(0);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("SetSoundPosition",
+					(arguments, globalScope, triggerScope) -> {
+						final CSound soundHandle = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						final float x = arguments.get(1).visit(RealJassValueVisitor.getInstance()).floatValue();
+						final float y = arguments.get(2).visit(RealJassValueVisitor.getInstance()).floatValue();
+						final float z = arguments.get(3).visit(RealJassValueVisitor.getInstance()).floatValue();
+						if (soundHandle != null) {
+							soundHandle.setPosition(x, y, z);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("AttachSoundToUnit",
+					(arguments, globalScope, triggerScope) -> {
+						final CSound soundHandle = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						final CUnit whichUnit = nullable(arguments, 1, ObjectJassValueVisitor.getInstance());
+						if ((soundHandle != null) && (whichUnit != null)) {
+							soundHandle.setPosition(whichUnit.getX(), whichUnit.getY(), 0);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("SetSoundDistanceCutoff",
+					(arguments, globalScope, triggerScope) -> {
+						final CSound soundHandle = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (soundHandle instanceof CSoundFilename) {
+							final float cutoff = arguments.get(1).visit(RealJassValueVisitor.getInstance())
+									.floatValue();
+							((CSoundFilename) soundHandle).setDistanceCutoff(cutoff);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("SetSoundChannel",
+					(arguments, globalScope, triggerScope) -> {
+						// channel routing to audio hardware is not implemented; accepted as no-op
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("RegisterStackedSound",
+					(arguments, globalScope, triggerScope) -> {
+						// stacked-sound (ambient layer) system not implemented
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("UnregisterStackedSound",
+					(arguments, globalScope, triggerScope) -> {
+						// stacked-sound (ambient layer) system not implemented
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("VolumeGroupSetVolume",
+					(arguments, globalScope, triggerScope) -> {
+						// per-group volume scaling not yet implemented
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("VolumeGroupReset",
+					(arguments, globalScope, triggerScope) -> {
+						// per-group volume reset not yet implemented
+						return null;
+					});
 			jassProgramVisitor.getJassNativeManager().createNative("CreateTextTag",
 					(arguments, globalScope, triggerScope) -> {
 						return new HandleJassValue(texttagType, CommonEnvironment.this.simulation.createTextTag());
@@ -3125,7 +3265,7 @@ public class Jass2 {
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("SetUnitFacingTimed",
 					(arguments, globalScope, triggerScope) -> {
-						// TODO this needs to apply the time delay
+						// time-interpolated rotation is not yet simulated; apply facing immediately
 						final CUnit whichUnit = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
 						final double facing = arguments.get(1).visit(RealJassValueVisitor.getInstance());
 						whichUnit.setFacing((float) facing);
@@ -3617,6 +3757,31 @@ public class Jass2 {
 						}
 						return IntegerJassValue.of(0);
 					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetHeroXPRequired",
+					(arguments, globalScope, triggerScope) -> {
+						final CUnit whichUnit = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (whichUnit != null) {
+							final CAbilityHero heroData = whichUnit.getHeroData();
+							if (heroData != null) {
+								return IntegerJassValue.of(
+										CommonEnvironment.this.simulation.getGameplayConstants()
+												.getNeedHeroXPSum(heroData.getHeroLevel()));
+							}
+						}
+						return IntegerJassValue.of(0);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetUnitRace",
+					(arguments, globalScope, triggerScope) -> {
+						final CUnit whichUnit = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (whichUnit != null) {
+							final com.etheller.warsmash.viewer5.handlers.w3x.simulation.data.CUnitRace race = whichUnit
+									.getUnitType().getRace();
+							if (race != null) {
+								return new HandleJassValue(raceType, race);
+							}
+						}
+						return raceType.getNullValue();
+					});
 			jassProgramVisitor.getJassNativeManager().createNative("GetHeroStr",
 					(arguments, globalScope, triggerScope) -> {
 						final CUnit whichUnit = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
@@ -3697,6 +3862,24 @@ public class Jass2 {
 							}
 						}
 						return BooleanJassValue.FALSE;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("UnitAddHeroSkill",
+					(arguments, globalScope, triggerScope) -> {
+						// Directly adding a hero skill requires learnSkill infrastructure;
+						// award a skill point and let normal UI handle it for now
+						final CUnit whichUnit = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (whichUnit != null) {
+							final CAbilityHero heroData = whichUnit.getHeroData();
+							if (heroData != null) {
+								heroData.setSkillPoints(heroData.getSkillPoints() + 1);
+							}
+						}
+						return BooleanJassValue.FALSE;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("SetHeroSkillAvailable",
+					(arguments, globalScope, triggerScope) -> {
+						// skill availability flags are not yet tracked per-ability; accepted as no-op
+						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("IsUnitType",
 					(arguments, globalScope, triggerScope) -> {
@@ -4138,6 +4321,32 @@ public class Jass2 {
 						final int layerHeight = war3MapViewer.terrain.getCorner(x, y).getLayerHeight();
 						return IntegerJassValue.of(layerHeight);
 					});
+			jassProgramVisitor.getJassNativeManager().createNative("IsTerrainPathable",
+					(arguments, globalScope, triggerScope) -> {
+						// Detailed pathing-type queries are not yet implemented; always return false
+						// (passable)
+						return BooleanJassValue.FALSE;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("SetTerrainPathable",
+					(arguments, globalScope, triggerScope) -> {
+						// Dynamic terrain pathability changes are not yet implemented
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetTerrainType",
+					(arguments, globalScope, triggerScope) -> {
+						// Tile-type queries are not yet implemented; return 0
+						return IntegerJassValue.of(0);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetTerrainVariance",
+					(arguments, globalScope, triggerScope) -> {
+						// Tile-variant queries are not yet implemented; return 0
+						return IntegerJassValue.of(0);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("SetTerrainType",
+					(arguments, globalScope, triggerScope) -> {
+						// Dynamic tile changes are not yet implemented
+						return null;
+					});
 			jassProgramVisitor.getJassNativeManager().createNative("SetWaterBaseColor",
 					(arguments, globalScope, triggerScope) -> {
 						final int red = arguments.get(0).visit(IntegerJassValueVisitor.getInstance());
@@ -4273,6 +4482,55 @@ public class Jass2 {
 						final CTimer timer = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
 						return new HandleJassValue(timerdialogType, meleeUI.createTimerDialog(timer));
 					});
+			jassProgramVisitor.getJassNativeManager().createNative("DestroyTimerDialog",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.ui.dialog.CTimerDialog td = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (td != null) {
+							td.setVisible(false);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("TimerDialogSetTitle",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.ui.dialog.CTimerDialog td = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final String title = nullable(arguments, 1, StringJassValueVisitor.getInstance());
+						if (td != null) {
+							td.setTitle(CommonEnvironment.this.gameUI, this.gameUI.getTrigStr(title));
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("TimerDialogSetTitleColor",
+					(arguments, globalScope, triggerScope) -> {
+						// color tinting not yet implemented for timer dialogs
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("TimerDialogSetTimeColor",
+					(arguments, globalScope, triggerScope) -> {
+						// color tinting not yet implemented for timer dialogs
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("TimerDialogSetSpeed",
+					(arguments, globalScope, triggerScope) -> {
+						// speed multiplier not yet implemented for timer dialogs
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("TimerDialogDisplay",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.ui.dialog.CTimerDialog td = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final boolean show = arguments.get(1).visit(BooleanJassValueVisitor.getInstance());
+						if (td != null) {
+							td.setVisible(show);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("IsTimerDialogDisplayed",
+					(arguments, globalScope, triggerScope) -> {
+						// visibility state query not yet wired; return false
+						return BooleanJassValue.FALSE;
+					});
 			jassProgramVisitor.getJassNativeManager().createNative("IsPlayerObserver",
 					(arguments, globalScope, triggerScope) -> {
 						final CPlayer player = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
@@ -4283,30 +4541,30 @@ public class Jass2 {
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("SetSoundParamsFromLabel",
 					(arguments, globalScope, triggerScope) -> {
-						final CSoundFilename sound = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
-						final String soundLabel = arguments.get(1).visit(StringJassValueVisitor.getInstance());
-						// TODO NYI
+						// sound params from label are resolved at create time; no runtime effect
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("SetSoundDuration",
 					(arguments, globalScope, triggerScope) -> {
-						final CSoundFilename sound = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
-						final int duration = arguments.get(1).visit(IntegerJassValueVisitor.getInstance());
-						// TODO NYI
+						// duration override not supported at runtime; ignored
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("SetSoundPitch",
 					(arguments, globalScope, triggerScope) -> {
-						final CSoundFilename sound = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
+						final CSound sound = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
 						final float pitch = arguments.get(1).visit(RealJassValueVisitor.getInstance()).floatValue();
-						// TODO NYI
+						if (sound != null) {
+							sound.setPitch(pitch);
+						}
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("SetSoundVolume",
 					(arguments, globalScope, triggerScope) -> {
-						final CSoundFilename sound = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
+						final CSound sound = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
 						final int volume = arguments.get(1).visit(IntegerJassValueVisitor.getInstance());
-						// TODO NYI
+						if (sound != null) {
+							sound.setVolume(volume);
+						}
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("AddWeatherEffect",
@@ -4337,6 +4595,15 @@ public class Jass2 {
 								.visit(ObjectJassValueVisitor.getInstance());
 						return new HandleJassValue(eventType,
 								whichWidget.addEvent(globalScope, whichTrigger, whichPlayerEvent));
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("TriggerRegisterAnyUnitEventBJ",
+					(arguments, globalScope, triggerScope) -> {
+						final Trigger whichTrigger = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
+						final JassGameEventsWar3 whichEvent = arguments.get(1)
+								.visit(ObjectJassValueVisitor.getInstance());
+						return new HandleJassValue(eventType,
+								CommonEnvironment.this.simulation.registerGlobalUnitEvent(whichTrigger, whichEvent,
+										null));
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("IsUnitHidden",
 					(arguments, globalScope, triggerScope) -> {
@@ -4493,6 +4760,21 @@ public class Jass2 {
 					(arguments, globalScope, triggerScope) -> {
 						final CPlayer whichPlayer = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
 						return RealJassValue.of(whichPlayer.getHandicap());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("SetPlayerHandicap",
+					(arguments, globalScope, triggerScope) -> {
+						final CPlayer whichPlayer = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						final float handicap = arguments.get(1).visit(RealJassValueVisitor.getInstance()).floatValue();
+						if (whichPlayer != null) {
+							whichPlayer.setHandicap(handicap);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetPlayerHandicapXP",
+					(arguments, globalScope, triggerScope) -> {
+						final CPlayer whichPlayer = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						return RealJassValue
+								.of(whichPlayer != null ? whichPlayer.getHandicapXP() : 1.0f);
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("GetHandleId",
 					(arguments, globalScope, triggerScope) -> {
@@ -4813,6 +5095,68 @@ public class Jass2 {
 						}
 						return new HandleJassValue(itemType, null);
 					});
+			jassProgramVisitor.getJassNativeManager().createNative("UnitInventorySize",
+					(arguments, globalScope, triggerScope) -> {
+						final CUnit whichUnit = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (whichUnit != null) {
+							final CAbilityInventory inv = whichUnit.getInventoryData();
+							if (inv != null) {
+								return IntegerJassValue.of(inv.getCapacity());
+							}
+						}
+						return IntegerJassValue.of(0);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("UnitDropItemPoint",
+					(arguments, globalScope, triggerScope) -> {
+						final CUnit whichUnit = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						final CItem whichItem = nullable(arguments, 1, ObjectJassValueVisitor.getInstance());
+						final float x = arguments.get(2).visit(RealJassValueVisitor.getInstance()).floatValue();
+						final float y = arguments.get(3).visit(RealJassValueVisitor.getInstance()).floatValue();
+						if ((whichUnit != null) && (whichItem != null)) {
+							final CAbilityInventory inv = whichUnit.getInventoryData();
+							if (inv != null) {
+								inv.dropItem(CommonEnvironment.this.simulation, whichUnit, whichItem, x, y, true);
+							}
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("UnitDropItemSlot",
+					(arguments, globalScope, triggerScope) -> {
+						final CUnit whichUnit = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						final CItem whichItem = nullable(arguments, 1, ObjectJassValueVisitor.getInstance());
+						// target slot is cosmetic in our implementation; treat as DropItemPoint at unit's location
+						if ((whichUnit != null) && (whichItem != null)) {
+							final CAbilityInventory inv = whichUnit.getInventoryData();
+							if (inv != null) {
+								inv.dropItem(CommonEnvironment.this.simulation, whichUnit, whichItem, whichUnit.getX(),
+										whichUnit.getY(), true);
+							}
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("UnitDropItemTarget",
+					(arguments, globalScope, triggerScope) -> {
+						final CUnit whichUnit = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						final CItem whichItem = nullable(arguments, 1, ObjectJassValueVisitor.getInstance());
+						final CWidget target = nullable(arguments, 2, ObjectJassValueVisitor.getInstance());
+						if ((whichUnit != null) && (whichItem != null)) {
+							final CAbilityInventory inv = whichUnit.getInventoryData();
+							if (inv != null) {
+								final float x = target != null ? target.getX() : whichUnit.getX();
+								final float y = target != null ? target.getY() : whichUnit.getY();
+								inv.dropItem(CommonEnvironment.this.simulation, whichUnit, whichItem, x, y, true);
+							}
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("IsItemOwned",
+					(arguments, globalScope, triggerScope) -> {
+						final CItem item = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (item == null) {
+							return BooleanJassValue.FALSE;
+						}
+						return BooleanJassValue.of(item.getContainedUnit() != null);
+					});
 			jassProgramVisitor.getJassNativeManager().createNative("SetCameraTargetController",
 					(arguments, globalScope, triggerScope) -> {
 						final CUnit whichUnit = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
@@ -4980,6 +5324,467 @@ public class Jass2 {
 						meleeUI.getCameraManager().resetToGameCamera(forceDuration);
 						return null;
 					});
+			jassProgramVisitor.getJassNativeManager().createNative("SetCameraField",
+					(arguments, globalScope, triggerScope) -> {
+						final CCameraField field = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						final float value = arguments.get(1).visit(RealJassValueVisitor.getInstance()).floatValue();
+						// duration-based interpolation not yet implemented; changes are immediate
+						if (field == null) {
+							return null;
+						}
+						switch (field) {
+						case TARGET_DISTANCE:
+							meleeUI.getCameraManager().distance = value;
+							break;
+						case ANGLE_OF_ATTACK:
+							meleeUI.getCameraManager().verticalAngle = value;
+							break;
+						case ROTATION:
+							meleeUI.getCameraManager().horizontalAngle = value;
+							break;
+						case ZOFFSET:
+							meleeUI.getCameraManager().setTargetZOffset(value);
+							break;
+						default:
+							break;
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCameraField",
+					(arguments, globalScope, triggerScope) -> {
+						final CCameraField field = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (field == null) {
+							return RealJassValue.ZERO;
+						}
+						switch (field) {
+						case TARGET_DISTANCE:
+							return RealJassValue.of(meleeUI.getCameraManager().distance);
+						case ANGLE_OF_ATTACK:
+							return RealJassValue.of(meleeUI.getCameraManager().verticalAngle);
+						case ROTATION:
+							return RealJassValue.of(meleeUI.getCameraManager().horizontalAngle);
+						case ZOFFSET:
+							return RealJassValue.of(meleeUI.getCameraManager().getTargetZOffset());
+						default:
+							return RealJassValue.ZERO;
+						}
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCameraTargetPositionX",
+					(arguments, globalScope, triggerScope) -> {
+						return RealJassValue.of(meleeUI.getCameraManager().target.x);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCameraTargetPositionY",
+					(arguments, globalScope, triggerScope) -> {
+						return RealJassValue.of(meleeUI.getCameraManager().target.y);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCameraTargetPositionZ",
+					(arguments, globalScope, triggerScope) -> {
+						return RealJassValue.of(meleeUI.getCameraManager().getTargetZOffset());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCameraTargetPositionLoc",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(locationType,
+								new LocationJass(meleeUI.getCameraManager().target.x,
+										meleeUI.getCameraManager().target.y,
+										CommonEnvironment.this.simulation.getHandleIdAllocator().createId()));
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCameraEyePositionX",
+					(arguments, globalScope, triggerScope) -> {
+						// Approximate: eye = target (for 2D uses that only need X/Y)
+						return RealJassValue.of(meleeUI.getCameraManager().target.x);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCameraEyePositionY",
+					(arguments, globalScope, triggerScope) -> {
+						return RealJassValue.of(meleeUI.getCameraManager().target.y);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCameraEyePositionZ",
+					(arguments, globalScope, triggerScope) -> {
+						return RealJassValue.of(meleeUI.getCameraManager().getTargetZOffset());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCameraEyePositionLoc",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(locationType,
+								new LocationJass(meleeUI.getCameraManager().target.x,
+										meleeUI.getCameraManager().target.y,
+										CommonEnvironment.this.simulation.getHandleIdAllocator().createId()));
+					});
+			// Quest system — state tracked internally so IsQuestCompleted etc. return
+			// correct values; no UI rendering is implemented yet.
+			jassProgramVisitor.getJassNativeManager().createNative("CreateQuest",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(questType,
+								new com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuest());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("DestroyQuest",
+					(arguments, globalScope, triggerScope) -> {
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("QuestSetTitle",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuest quest = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final String title = nullable(arguments, 1, StringJassValueVisitor.getInstance());
+						if (quest != null) {
+							quest.setTitle(this.gameUI.getTrigStr(title));
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("QuestSetDescription",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuest quest = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final String desc = nullable(arguments, 1, StringJassValueVisitor.getInstance());
+						if (quest != null) {
+							quest.setDescription(this.gameUI.getTrigStr(desc));
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("QuestSetIconPath",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuest quest = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final String path = nullable(arguments, 1, StringJassValueVisitor.getInstance());
+						if (quest != null) {
+							quest.setIconPath(path != null ? path : "");
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("QuestSetEnabled",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuest quest = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final boolean enabled = arguments.get(1).visit(BooleanJassValueVisitor.getInstance());
+						if (quest != null) {
+							quest.setEnabled(enabled);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("QuestSetRequired",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuest quest = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final boolean required = arguments.get(1).visit(BooleanJassValueVisitor.getInstance());
+						if (quest != null) {
+							quest.setRequired(required);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("QuestSetCompleted",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuest quest = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final boolean completed = arguments.get(1).visit(BooleanJassValueVisitor.getInstance());
+						if (quest != null) {
+							quest.setCompleted(completed);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("QuestSetFailed",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuest quest = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final boolean failed = arguments.get(1).visit(BooleanJassValueVisitor.getInstance());
+						if (quest != null) {
+							quest.setFailed(failed);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("QuestSetDiscovered",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuest quest = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final boolean discovered = arguments.get(1).visit(BooleanJassValueVisitor.getInstance());
+						if (quest != null) {
+							quest.setDiscovered(discovered);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("IsQuestEnabled",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuest quest = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						return BooleanJassValue.of((quest != null) && quest.isEnabled());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("IsQuestRequired",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuest quest = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						return BooleanJassValue.of((quest != null) && quest.isRequired());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("IsQuestCompleted",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuest quest = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						return BooleanJassValue.of((quest != null) && quest.isCompleted());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("IsQuestFailed",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuest quest = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						return BooleanJassValue.of((quest != null) && quest.isFailed());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("IsQuestDiscovered",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuest quest = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						return BooleanJassValue.of((quest != null) && quest.isDiscovered());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("CreateQuestItem",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuest quest = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (quest == null) {
+							return questitemType.getNullValue();
+						}
+						final String desc = nullable(arguments, 1, StringJassValueVisitor.getInstance());
+						return new HandleJassValue(questitemType,
+								quest.createItem(this.gameUI.getTrigStr(desc)));
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("DestroyQuestItem",
+					(arguments, globalScope, triggerScope) -> {
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("QuestItemSetDescription",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuestItem item = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final String desc = nullable(arguments, 1, StringJassValueVisitor.getInstance());
+						if (item != null) {
+							item.setDescription(this.gameUI.getTrigStr(desc));
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("QuestItemSetCompleted",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuestItem item = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final boolean completed = arguments.get(1).visit(BooleanJassValueVisitor.getInstance());
+						if (item != null) {
+							item.setCompleted(completed);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("IsQuestItemCompleted",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.quest.CQuestItem item = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						return BooleanJassValue.of((item != null) && item.isCompleted());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("FlashQuestDialogButton",
+					(arguments, globalScope, triggerScope) -> {
+						// quest dialog flash is a UI effect; not yet implemented
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("ForceQuestDialogUpdate",
+					(arguments, globalScope, triggerScope) -> {
+						// quest dialog force-update is a UI effect; not yet implemented
+						return null;
+					});
+			// Defeat condition (companion to quest system)
+			jassProgramVisitor.getJassNativeManager().createNative("CreateDefeatCondition",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(defeatconditionType, new Object());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("DestroyDefeatCondition",
+					(arguments, globalScope, triggerScope) -> {
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("DefeatConditionSetDescription",
+					(arguments, globalScope, triggerScope) -> {
+						return null;
+					});
+			// Multiboard — state tracked; no UI rendering yet.
+			jassProgramVisitor.getJassNativeManager().createNative("CreateMultiboard",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(multiboardType,
+								new com.etheller.warsmash.viewer5.handlers.w3x.simulation.ui.CMultiboard());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("DestroyMultiboard",
+					(arguments, globalScope, triggerScope) -> {
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardDisplay",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.ui.CMultiboard mb = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final boolean show = arguments.get(1).visit(BooleanJassValueVisitor.getInstance());
+						if (mb != null) {
+							mb.setDisplayed(show);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("IsMultiboardDisplayed",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.ui.CMultiboard mb = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						return BooleanJassValue.of((mb != null) && mb.isDisplayed());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardMinimize",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.ui.CMultiboard mb = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final boolean minimize = arguments.get(1).visit(BooleanJassValueVisitor.getInstance());
+						if (mb != null) {
+							mb.setMinimized(minimize);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("IsMultiboardMinimized",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.ui.CMultiboard mb = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						return BooleanJassValue.of((mb != null) && mb.isMinimized());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardClear",
+					(arguments, globalScope, triggerScope) -> {
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardSetTitleText",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.ui.CMultiboard mb = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final String text = nullable(arguments, 1, StringJassValueVisitor.getInstance());
+						if (mb != null) {
+							mb.setTitle(this.gameUI.getTrigStr(text));
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardGetTitleText",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.ui.CMultiboard mb = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						return new StringJassValue(mb != null ? mb.getTitle() : "");
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardSetTitleTextColor",
+					(arguments, globalScope, triggerScope) -> {
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardGetRowCount",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.ui.CMultiboard mb = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						return IntegerJassValue.of(mb != null ? mb.getRows() : 0);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardGetColumnCount",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.ui.CMultiboard mb = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						return IntegerJassValue.of(mb != null ? mb.getColumns() : 0);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardSetColumnCount",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.ui.CMultiboard mb = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final int count = arguments.get(1).visit(IntegerJassValueVisitor.getInstance());
+						if (mb != null) {
+							mb.setColumns(count);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardSetRowCount",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.ui.CMultiboard mb = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final int count = arguments.get(1).visit(IntegerJassValueVisitor.getInstance());
+						if (mb != null) {
+							mb.setRows(count);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardSetItemsStyle",
+					(arguments, globalScope, triggerScope) -> {
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardSetItemsValue",
+					(arguments, globalScope, triggerScope) -> {
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardSetItemsValueColor",
+					(arguments, globalScope, triggerScope) -> {
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardSetItemsWidth",
+					(arguments, globalScope, triggerScope) -> {
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardSetItemsIcon",
+					(arguments, globalScope, triggerScope) -> {
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardGetItem",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.ui.CMultiboard mb = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (mb == null) {
+							return multiboarditemType.getNullValue();
+						}
+						final int row = arguments.get(1).visit(IntegerJassValueVisitor.getInstance());
+						final int col = arguments.get(2).visit(IntegerJassValueVisitor.getInstance());
+						return new HandleJassValue(multiboarditemType, mb.getItem(row, col));
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardReleaseItem",
+					(arguments, globalScope, triggerScope) -> {
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardSetItemStyle",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.ui.CMultiboardItem item = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final boolean showValue = arguments.get(1).visit(BooleanJassValueVisitor.getInstance());
+						final boolean showIcon = arguments.get(2).visit(BooleanJassValueVisitor.getInstance());
+						if (item != null) {
+							item.setStyle((showValue ? 1 : 0) | (showIcon ? 2 : 0));
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardSetItemValue",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.ui.CMultiboardItem item = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final String val = nullable(arguments, 1, StringJassValueVisitor.getInstance());
+						if (item != null) {
+							item.setValue(this.gameUI.getTrigStr(val));
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardSetItemValueColor",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.ui.CMultiboardItem item = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final float r = arguments.get(1).visit(IntegerJassValueVisitor.getInstance()) / 255.0f;
+						final float g = arguments.get(2).visit(IntegerJassValueVisitor.getInstance()) / 255.0f;
+						final float b = arguments.get(3).visit(IntegerJassValueVisitor.getInstance()) / 255.0f;
+						final float a = arguments.get(4).visit(IntegerJassValueVisitor.getInstance()) / 255.0f;
+						if (item != null) {
+							item.setValueColor(r, g, b, a);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardSetItemWidth",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.ui.CMultiboardItem item = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final float width = arguments.get(1).visit(RealJassValueVisitor.getInstance()).floatValue();
+						if (item != null) {
+							item.setWidth(width);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardSetItemIcon",
+					(arguments, globalScope, triggerScope) -> {
+						final com.etheller.warsmash.viewer5.handlers.w3x.simulation.ui.CMultiboardItem item = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						final String icon = nullable(arguments, 1, StringJassValueVisitor.getInstance());
+						if (item != null) {
+							item.setIcon(icon != null ? icon : "");
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("MultiboardSuppressDisplay",
+					(arguments, globalScope, triggerScope) -> {
+						// suppress flag is a UI concern; not yet implemented
+						return null;
+					});
 			jassProgramVisitor.getJassNativeManager().createNative("LeaderboardGetItemCount",
 					(arguments, globalScope, triggerScope) -> {
 						// TODO NYI
@@ -5004,6 +5809,12 @@ public class Jass2 {
 						final CUnit whichUnit = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
 						final boolean flag = arguments.get(1).visit(BooleanJassValueVisitor.getInstance());
 						whichUnit.setExplodesOnDeath(flag);
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("SetUnitPathing",
+					(arguments, globalScope, triggerScope) -> {
+						// Dynamic pathing enable/disable per unit is not yet implemented; accepted as
+						// no-op so cinematic scripts that disable pathing don't crash
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("GetTriggerWidget",
@@ -5131,6 +5942,47 @@ public class Jass2 {
 						meleeUI.showInterface(show, fadeDuration);
 						return null;
 					});
+			jassProgramVisitor.getJassNativeManager().createNative("EnableUserUI",
+					(arguments, globalScope, triggerScope) -> {
+						// no-op: UI control is handled by ShowInterface / EnableUserControl
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("SelectUnit",
+					(arguments, globalScope, triggerScope) -> {
+						// Selection is a local-player UI concern; no simulation state change needed
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("ClearSelection",
+					(arguments, globalScope, triggerScope) -> {
+						// Selection is a local-player UI concern; no simulation state change needed
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("SelectGroup",
+					(arguments, globalScope, triggerScope) -> {
+						// Selection is a local-player UI concern; no simulation state change needed
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("SaveGame",
+					(arguments, globalScope, triggerScope) -> {
+						final String filename = nullable(arguments, 0, StringJassValueVisitor.getInstance());
+						// Full game-state save is not yet implemented; log and continue
+						System.err.println("SaveGame: game-state save is not implemented (filename="
+								+ filename + ")");
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("LoadGame",
+					(arguments, globalScope, triggerScope) -> {
+						final String filename = nullable(arguments, 0, StringJassValueVisitor.getInstance());
+						// Full game-state load is not yet implemented; log and continue
+						System.err.println("LoadGame: game-state load is not implemented (filename="
+								+ filename + ")");
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("ReloadGame",
+					(arguments, globalScope, triggerScope) -> {
+						System.err.println("ReloadGame: not implemented");
+						return null;
+					});
 			jassProgramVisitor.getJassNativeManager().createNative("EnableUserControl",
 					(arguments, globalScope, triggerScope) -> {
 						final boolean value = arguments.get(0).visit(BooleanJassValueVisitor.getInstance());
@@ -5158,6 +6010,78 @@ public class Jass2 {
 			jassProgramVisitor.getJassNativeManager().createNative("EndCinematicScene",
 					(arguments, globalScope, triggerScope) -> {
 						meleeUI.endCinematicScene();
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("SetCinematicAudio",
+					(arguments, globalScope, triggerScope) -> {
+						// Cinematic audio (ambient occlusion etc.) not yet implemented
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("UseTimeOfDayZOffset",
+					(arguments, globalScope, triggerScope) -> {
+						// Time-of-day Z offset not yet implemented; accepted as no-op
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("PauseGame",
+					(arguments, globalScope, triggerScope) -> {
+						// Game pause not yet implemented; accepted as no-op in single-player
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("PlayThematic",
+					(arguments, globalScope, triggerScope) -> {
+						// Thematic music playback not yet implemented
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("EndThematic",
+					(arguments, globalScope, triggerScope) -> {
+						// Thematic music stop not yet implemented
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("SetSkyModel",
+					(arguments, globalScope, triggerScope) -> {
+						// Sky model changes not yet implemented
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("SetIntegerGameState",
+					(arguments, globalScope, triggerScope) -> {
+						// Integer game-state not yet implemented; accepted as no-op
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("HideInterface",
+					(arguments, globalScope, triggerScope) -> {
+						// Interface hiding is managed via ShowInterface; accepted as no-op
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("CinematicMode",
+					(arguments, globalScope, triggerScope) -> {
+						// Full cinematic-mode integration not yet implemented; accepted as no-op
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("SetCinematicCamera",
+					(arguments, globalScope, triggerScope) -> {
+						// Predefined cinematic camera positions not yet implemented
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("ForceUIKey",
+					(arguments, globalScope, triggerScope) -> {
+						// Forcing UI key presses not yet implemented
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("ForceUICancel",
+					(arguments, globalScope, triggerScope) -> {
+						// Forcing UI cancel not yet implemented
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("EnablePreSelect",
+					(arguments, globalScope, triggerScope) -> {
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("EnableDragSelect",
+					(arguments, globalScope, triggerScope) -> {
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("EnableSelect",
+					(arguments, globalScope, triggerScope) -> {
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("ForceCinematicSubtitles",
@@ -5449,6 +6373,127 @@ public class Jass2 {
 			jassProgramVisitor.getJassNativeManager().createNative("GetTrainedUnitType",
 					(arguments, globalScope, triggerScope) -> {
 						return IntegerJassValue.of(((CommonTriggerExecutionScope) triggerScope).getTrainedUnitType());
+					});
+			// Hero event getters
+			jassProgramVisitor.getJassNativeManager().createNative("GetLevelingUnit",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(unitType,
+								((CommonTriggerExecutionScope) triggerScope).getLevelingUnit());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetLearningUnit",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(unitType,
+								((CommonTriggerExecutionScope) triggerScope).getLearningUnit());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetLearnedSkill",
+					(arguments, globalScope, triggerScope) -> {
+						return IntegerJassValue.of(((CommonTriggerExecutionScope) triggerScope).getLearnedSkill());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetLearnedSkillBJ",
+					(arguments, globalScope, triggerScope) -> {
+						return IntegerJassValue.of(((CommonTriggerExecutionScope) triggerScope).getLearnedSkill());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetLearnedSkillLevel",
+					(arguments, globalScope, triggerScope) -> {
+						return IntegerJassValue
+								.of(((CommonTriggerExecutionScope) triggerScope).getLearnedSkillLevel());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetRevivingUnit",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(unitType,
+								((CommonTriggerExecutionScope) triggerScope).getRevivingUnit());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetRevivableUnit",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(unitType,
+								((CommonTriggerExecutionScope) triggerScope).getRevivableUnit());
+					});
+			// Unit lifecycle event getters
+			jassProgramVisitor.getJassNativeManager().createNative("GetDecayingUnit",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(unitType,
+								((CommonTriggerExecutionScope) triggerScope).getDecayingUnit());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCancelledStructure",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(unitType,
+								((CommonTriggerExecutionScope) triggerScope).getCancelledStructure());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetConstructingStructure",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(unitType,
+								((CommonTriggerExecutionScope) triggerScope).getConstructingStructure());
+					});
+			// Summon event getters
+			jassProgramVisitor.getJassNativeManager().createNative("GetSummonedUnit",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(unitType,
+								((CommonTriggerExecutionScope) triggerScope).getSummonedUnit());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetSummoningUnit",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(unitType,
+								((CommonTriggerExecutionScope) triggerScope).getSummoningUnit());
+					});
+			// Transport event getters
+			jassProgramVisitor.getJassNativeManager().createNative("GetLoadedUnit",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(unitType,
+								((CommonTriggerExecutionScope) triggerScope).getLoadedUnit());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetTransportUnit",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(unitType,
+								((CommonTriggerExecutionScope) triggerScope).getTransportUnit());
+					});
+			// Detect/sell event getters
+			jassProgramVisitor.getJassNativeManager().createNative("GetDetectedUnit",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(unitType,
+								((CommonTriggerExecutionScope) triggerScope).getDetectedUnit());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetSellingUnit",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(unitType,
+								((CommonTriggerExecutionScope) triggerScope).getSellingUnit());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetSoldUnit",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(unitType,
+								((CommonTriggerExecutionScope) triggerScope).getSoldUnit());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetBuyingUnit",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(unitType,
+								((CommonTriggerExecutionScope) triggerScope).getBuyingUnit());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetSoldItem",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(itemType,
+								((CommonTriggerExecutionScope) triggerScope).getSoldItem());
+					});
+			// Spell target getters
+			jassProgramVisitor.getJassNativeManager().createNative("GetSpellTargetItem",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(itemType,
+								((CommonTriggerExecutionScope) triggerScope).getSpellTargetItem());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetSpellTargetDestructable",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(destructableType,
+								((CommonTriggerExecutionScope) triggerScope).getSpellTargetDestructable());
+					});
+			// Rescue event getter
+			jassProgramVisitor.getJassNativeManager().createNative("GetRescuer",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(unitType,
+								((CommonTriggerExecutionScope) triggerScope).getRescuer());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetRescuedUnit",
+					(arguments, globalScope, triggerScope) -> {
+						// rescued unit is the same as the triggering unit
+						return new HandleJassValue(unitType,
+								((CommonTriggerExecutionScope) triggerScope).getTriggeringUnit());
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("GetUnitRallyPoint",
 					(arguments, globalScope, triggerScope) -> {
@@ -10574,6 +11619,30 @@ public class Jass2 {
 					final CAllianceType whichAllianceSetting = arguments.get(2)
 							.visit(ObjectJassValueVisitor.<CAllianceType>getInstance());
 					return BooleanJassValue.of(player.hasAlliance(otherPlayer.getId(), whichAllianceSetting));
+				});
+		jassProgramVisitor.getJassNativeManager().createNative("IsPlayerAlly",
+				(arguments, globalScope, triggerScope) -> {
+					final CPlayerJass player = nullable(arguments, 0,
+							ObjectJassValueVisitor.<CPlayerJass>getInstance());
+					final CPlayerJass otherPlayer = nullable(arguments, 1,
+							ObjectJassValueVisitor.<CPlayerJass>getInstance());
+					if ((player == null) || (otherPlayer == null)) {
+						return BooleanJassValue.FALSE;
+					}
+					return BooleanJassValue
+							.of(player.hasAlliance(otherPlayer.getId(), CAllianceType.PASSIVE));
+				});
+		jassProgramVisitor.getJassNativeManager().createNative("IsPlayerEnemy",
+				(arguments, globalScope, triggerScope) -> {
+					final CPlayerJass player = nullable(arguments, 0,
+							ObjectJassValueVisitor.<CPlayerJass>getInstance());
+					final CPlayerJass otherPlayer = nullable(arguments, 1,
+							ObjectJassValueVisitor.<CPlayerJass>getInstance());
+					if ((player == null) || (otherPlayer == null)) {
+						return BooleanJassValue.TRUE;
+					}
+					return BooleanJassValue
+							.of(!player.hasAlliance(otherPlayer.getId(), CAllianceType.PASSIVE));
 				});
 		jassProgramVisitor.getJassNativeManager().createNative("SetPlayerTaxRate",
 				(arguments, globalScope, triggerScope) -> {

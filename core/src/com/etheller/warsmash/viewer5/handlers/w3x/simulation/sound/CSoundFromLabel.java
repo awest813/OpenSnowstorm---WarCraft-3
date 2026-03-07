@@ -34,6 +34,34 @@ public class CSoundFromLabel implements CSound {
 	}
 
 	@Override
+	public void stop() {
+		this.sound.stop();
+	}
+
+	@Override
+	public void setVolume(final int volume) {
+		// volume control not yet wired into UnitSound playback; ignore silently
+	}
+
+	@Override
+	public void setPitch(final float pitch) {
+		// pitch control not yet wired into UnitSound playback; ignore silently
+	}
+
+	@Override
+	public void setPosition(final float x, final float y, final float z) {
+		// position not yet wired into UnitSound playback; ignore silently
+	}
+
+	@Override
+	public boolean isPlaying() {
+		final long currentTime = TimeUtils.millis();
+		final long deltaTime = currentTime - this.lastStartTimestamp;
+		final float deltaTimeSeconds = deltaTime / 1000f;
+		return deltaTimeSeconds < getPredictedDuration();
+	}
+
+	@Override
 	public float getPredictedDuration() {
 		return Extensions.audio.getDuration(this.sound.getLastPlayedSound());
 	}

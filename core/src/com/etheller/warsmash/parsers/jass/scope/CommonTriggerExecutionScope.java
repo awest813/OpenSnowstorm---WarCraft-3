@@ -553,6 +553,17 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 		return scope;
 	}
 
+	public static CommonTriggerExecutionScope playerHeroSkillScope(final JassGameEventsWar3 triggerEventId,
+			final Trigger trigger, final CUnit hero, final int learnedSkillId, final int learnedSkillLevelValue) {
+		final CommonTriggerExecutionScope scope = new CommonTriggerExecutionScope(trigger, TriggerExecutionScope.EMPTY);
+		scope.triggeringUnit = hero;
+		scope.learningUnit = hero;
+		scope.learnedSkill = learnedSkillId;
+		scope.learnedSkillLevel = learnedSkillLevelValue;
+		scope.triggerEventId = triggerEventId;
+		return scope;
+	}
+
 	public static CommonTriggerExecutionScope playerHeroRevivableScope(final JassGameEventsWar3 triggerEventId,
 			final Trigger trigger, final CUnit hero) {
 		final CommonTriggerExecutionScope scope = new CommonTriggerExecutionScope(trigger, TriggerExecutionScope.EMPTY);

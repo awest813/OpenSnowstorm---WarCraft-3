@@ -357,8 +357,19 @@ public class CPlayer extends CBasePlayer {
 	}
 
 	public void fireHeroLevelEvents(final CUnit hero) {
-		firePlayerUnitEvents(hero, CommonTriggerExecutionScope::playerHeroRevivableScope,
+		firePlayerUnitEvents(hero, CommonTriggerExecutionScope::playerHeroLevelScope,
 				JassGameEventsWar3.EVENT_PLAYER_HERO_LEVEL);
+	}
+
+	public void fireHeroSkillEvents(final CUnit hero, final int learnedSkillId, final int learnedSkillLevel) {
+		final List<CPlayerEvent> eventList = getEventList(JassGameEventsWar3.EVENT_PLAYER_HERO_SKILL);
+		if (eventList != null) {
+			for (final CPlayerEvent event : eventList) {
+				event.fire(hero, CommonTriggerExecutionScope.playerHeroSkillScope(
+						JassGameEventsWar3.EVENT_PLAYER_HERO_SKILL, event.getTrigger(), hero, learnedSkillId,
+						learnedSkillLevel));
+			}
+		}
 	}
 
 	public void fireUnitDeathEvents(final CUnit dyingUnit, final CUnit killingUnit) {

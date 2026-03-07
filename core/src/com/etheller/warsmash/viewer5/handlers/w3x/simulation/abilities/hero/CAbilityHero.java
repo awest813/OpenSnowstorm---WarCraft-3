@@ -105,13 +105,17 @@ public class CAbilityHero extends AbstractCAbility {
 			this.skillPoints--;
 			final CLevelingAbility existingAbility = caster
 					.getAbility(GetAbilityByRawcodeVisitor.getInstance().reset(skillId));
+			int newLevel;
 			if (existingAbility == null) {
 				final CAbility newAbility = abilityType.createAbility(game.getHandleIdAllocator().createId());
 				caster.add(game, newAbility);
+				newLevel = 1;
 			}
 			else {
-				abilityType.setLevel(game, caster, existingAbility, existingAbility.getLevel() + 1);
+				newLevel = existingAbility.getLevel() + 1;
+				abilityType.setLevel(game, caster, existingAbility, newLevel);
 			}
+			game.unitSkillLearnedEvent(caster, skillId.getValue(), newLevel);
 		}
 		else {
 			game.getCommandErrorListener().showInterfaceError(caster.getPlayerIndex(),

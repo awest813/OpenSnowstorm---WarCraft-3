@@ -18,6 +18,31 @@ public class CMIDISound implements CSound {
 	}
 
 	@Override
+	public void stop() {
+		// MIDI sounds are not played, so nothing to stop
+	}
+
+	@Override
+	public void setVolume(final int volume) {
+		// MIDI volume control not implemented
+	}
+
+	@Override
+	public void setPitch(final float pitch) {
+		// MIDI pitch control not implemented
+	}
+
+	@Override
+	public void setPosition(final float x, final float y, final float z) {
+		// MIDI positional audio not implemented
+	}
+
+	@Override
+	public boolean isPlaying() {
+		return false;
+	}
+
+	@Override
 	public float getPredictedDuration() {
 		return 0;
 	}

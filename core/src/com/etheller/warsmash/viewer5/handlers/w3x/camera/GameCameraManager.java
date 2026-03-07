@@ -326,6 +326,10 @@ public final class GameCameraManager extends CameraManager {
 		this.targetZOffset = targetZOffset;
 	}
 
+	public float getTargetZOffset() {
+		return this.targetZOffset;
+	}
+
 	public void setTargetZOffset(float targetZOffset, float duration) {
 		final float rate = Math.abs((targetZOffset - this.targetZOffset) / duration);
 		this.zOffsetDestination = targetZOffset;

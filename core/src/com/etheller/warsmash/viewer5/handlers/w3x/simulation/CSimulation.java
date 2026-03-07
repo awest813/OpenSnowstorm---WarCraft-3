@@ -802,6 +802,10 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		}
 	}
 
+	public void unitSkillLearnedEvent(final CUnit hero, final int skillId, final int skillLevel) {
+		this.players.get(hero.getPlayerIndex()).fireHeroSkillEvents(hero, skillId, skillLevel);
+	}
+
 	public void heroCreateEvent(final CUnit hero) {
 		getPlayerHeroes(hero.getPlayerIndex()).add(hero);
 	}
