@@ -103,6 +103,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.rendersim.ability.OrderButtonU
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructable;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructableType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CGameCache;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CGameSave;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CItem;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.StoredUnitData;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.StoredUnitData.StoredItemData;
@@ -576,6 +577,8 @@ public class Jass2 {
 		private final JassProgram jassProgramVisitor;
 		private CSimulation simulation;
 		private final File gamecacheDir;
+		private final File saveGameDir;
+		private final java.util.EnumMap<CGameState, Integer> integerGameStates = new java.util.EnumMap<>(CGameState.class);
 
 		private CommonEnvironment(final JassProgram jassProgramVisitor, final DataSource dataSource,
 				final Viewport uiViewport, final Scene uiScene, final War3MapViewer war3MapViewer,
@@ -586,6 +589,8 @@ public class Jass2 {
 			this.simulation = war3MapViewer.simulation;
 			this.gamecacheDir = new File(
 					System.getProperty("user.home") + File.separator + ".warsmash" + File.separator + "gamecache");
+			this.saveGameDir = new File(
+					System.getProperty("user.home") + File.separator + ".warsmash" + File.separator + "saves");
 			final GlobalScope globals = jassProgramVisitor.getGlobalScope();
 			final HandleJassType handleType = globals.registerHandleType("handle");
 			final HandleJassType agentType = globals.registerHandleType("agent");
@@ -2125,13 +2130,14 @@ public class Jass2 {
 						final CGameState whichState = arguments.get(1)
 								.visit(ObjectJassValueVisitor.<CGameState>getInstance());
 						final CLimitOp opcode = arguments.get(2).visit(ObjectJassValueVisitor.<CLimitOp>getInstance());
-						final Double limitval = arguments.get(2).visit(RealJassValueVisitor.getInstance());
-						if (whichState != CGameState.TIME_OF_DAY) {
-							System.err.println("TriggerRegisterGameStateEvent: state not yet implemented: " + whichState);
-							return eventType.getNullValue();
+						final Double limitval = arguments.get(3).visit(RealJassValueVisitor.getInstance());
+						if (whichState == CGameState.TIME_OF_DAY) {
+							return new HandleJassValue(eventType, CommonEnvironment.this.simulation
+									.registerTimeOfDayEvent(globalScope, trigger, opcode, limitval.doubleValue()));
 						}
-						return new HandleJassValue(eventType, CommonEnvironment.this.simulation
-								.registerTimeOfDayEvent(globalScope, trigger, opcode, limitval.doubleValue()));
+						// DIVINE_INTERVENTION and DISCONNECTED are tracked in integerGameStates
+						// but do not yet fire events; return null handle and continue gracefully.
+						return eventType.getNullValue();
 					});
 			if (JassSettings.CONTINUE_EXECUTING_ON_ERROR) {
 				jassProgramVisitor.getJassNativeManager().createNative("TriggerRegisterUnitStateEvent",
@@ -2457,14 +2463,11 @@ public class Jass2 {
 			jassProgramVisitor.getJassNativeManager().createNative("GetIntegerGameState",
 					(arguments, globalScope, triggerScope) -> {
 						final CGameState gameState = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
-						switch (gameState) {
-						case DISCONNECTED:
-						case DIVINE_INTERVENTION:
-							return IntegerJassValue.of(0); // TODO
-						default:
-							System.err.println("GetIntegerGameState: unhandled state: " + gameState);
-							return IntegerJassValue.of(0);
+						final Integer stored = CommonEnvironment.this.integerGameStates.get(gameState);
+						if (stored != null) {
+							return IntegerJassValue.of(stored);
 						}
+						return IntegerJassValue.of(0);
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("SetFloatGameState",
 					(arguments, globalScope, triggerScope) -> {
@@ -2569,6 +2572,9 @@ public class Jass2 {
 			jassProgramVisitor.getJassNativeManager().createNative("GetSoundDuration",
 					(arguments, globalScope, triggerScope) -> {
 						final CSound sound = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (sound == null) {
+							return IntegerJassValue.of(-1);
+						}
 						return IntegerJassValue.of((int) (sound.getPredictedDuration() * 1000)); // PRONE TO DESYNC (?)
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("StopSound",
@@ -4643,8 +4649,12 @@ public class Jass2 {
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("IsTimerDialogDisplayed",
 					(arguments, globalScope, triggerScope) -> {
-						// visibility state query not yet wired; return false
-						return BooleanJassValue.FALSE;
+						final com.etheller.warsmash.viewer5.handlers.w3x.ui.dialog.CTimerDialog td = nullable(
+								arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (td == null) {
+							return BooleanJassValue.FALSE;
+						}
+						return BooleanJassValue.of(td.isVisible());
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("IsPlayerObserver",
 					(arguments, globalScope, triggerScope) -> {
@@ -4918,9 +4928,15 @@ public class Jass2 {
 								timer.setTimeoutTime(seconds.floatValue());
 								timer.start(this.simulation);
 							}
-							else {
+							else if (!JassSettings.CONTINUE_EXECUTING_ON_ERROR) {
 								throw new JassException(globalScope,
 										"Needs to sleep " + seconds + " but no thread was found", null);
+							}
+							else {
+								final Trigger t = triggerScope.getTriggeringTrigger();
+								System.err.println("TriggerSleepAction: no current thread for sleep of " + seconds
+										+ "s (trigger=" + (t != null ? t.getHandleId() : "null")
+										+ ") — skipping wait");
 							}
 						}
 						return null;
@@ -4946,9 +4962,15 @@ public class Jass2 {
 								timer.setTimeoutTime(seconds);
 								timer.start(this.simulation);
 							}
-							else {
+							else if (!JassSettings.CONTINUE_EXECUTING_ON_ERROR) {
 								throw new JassException(globalScope,
 										"Needs to sleep " + seconds + " but no thread was found", null);
+							}
+							else {
+								final Trigger t = triggerScope.getTriggeringTrigger();
+								System.err.println("TriggerWaitForSound: no current thread for sleep of " + seconds
+										+ "s (trigger=" + (t != null ? t.getHandleId() : "null")
+										+ ") — skipping wait");
 							}
 						}
 						return null;
@@ -6086,17 +6108,59 @@ public class Jass2 {
 			jassProgramVisitor.getJassNativeManager().createNative("SaveGame",
 					(arguments, globalScope, triggerScope) -> {
 						final String filename = nullable(arguments, 0, StringJassValueVisitor.getInstance());
-						// Full game-state save is not yet implemented; log and continue
-						System.err.println("SaveGame: game-state save is not implemented (filename="
-								+ filename + ")");
+						if (filename == null) {
+							System.err.println("SaveGame: null filename — skipping");
+							return null;
+						}
+						try {
+							final File saveFile = saveGameFileFor(CommonEnvironment.this.saveGameDir, filename);
+							final int numPlayers = WarsmashConstants.MAX_PLAYERS;
+							final CGameSave save = new CGameSave(filename, numPlayers);
+							save.collectGlobals(globalScope);
+							for (int i = 0; i < numPlayers; i++) {
+								final com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer p =
+										CommonEnvironment.this.simulation.getPlayer(i);
+								if (p != null) {
+									save.gold[i] = p.getGold();
+									save.lumber[i] = p.getLumber();
+								}
+							}
+							save.save(saveFile);
+							System.out.println("SaveGame: saved " + save.globals.size()
+									+ " globals to " + saveFile);
+						}
+						catch (final Exception e) {
+							System.err.println("SaveGame: failed to save '" + filename + "': " + e.getMessage());
+						}
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("LoadGame",
 					(arguments, globalScope, triggerScope) -> {
 						final String filename = nullable(arguments, 0, StringJassValueVisitor.getInstance());
-						// Full game-state load is not yet implemented; log and continue
-						System.err.println("LoadGame: game-state load is not implemented (filename="
-								+ filename + ")");
+						if (filename == null) {
+							System.err.println("LoadGame: null filename — skipping");
+							return null;
+						}
+						final File saveFile = saveGameFileFor(CommonEnvironment.this.saveGameDir, filename);
+						final CGameSave save = CGameSave.tryLoad(saveFile);
+						if (save == null) {
+							System.err.println("LoadGame: no valid save found for '" + filename + "'");
+							return null;
+						}
+						// Restore JASS primitive globals immediately (unit/hero state
+						// restoration requires a full map-reload which is not yet wired).
+						save.restoreGlobals(globalScope);
+						// Restore player resources.
+						for (int i = 0; i < save.gold.length && i < WarsmashConstants.MAX_PLAYERS; i++) {
+							final com.etheller.warsmash.viewer5.handlers.w3x.simulation.players.CPlayer p =
+									CommonEnvironment.this.simulation.getPlayer(i);
+							if (p != null) {
+								p.setGold(save.gold[i]);
+								p.setLumber(save.lumber[i]);
+							}
+						}
+						System.out.println("LoadGame: restored " + save.globals.size()
+								+ " globals from " + saveFile);
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("ReloadGame",
@@ -6150,12 +6214,17 @@ public class Jass2 {
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("PlayThematic",
 					(arguments, globalScope, triggerScope) -> {
-						// Thematic music playback not yet implemented
+						final String musicName = nullable(arguments, 0, StringJassValueVisitor.getInstance());
+						if (musicName != null) {
+							final String musicField = CommonEnvironment.this.gameUI.trySkinField(musicName);
+							meleeUI.playMusic(musicField != null ? musicField : musicName, true, 0);
+						}
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("EndThematic",
 					(arguments, globalScope, triggerScope) -> {
-						// Thematic music stop not yet implemented
+						meleeUI.stopMusic(false);
+						meleeUI.playMapMusic();
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("SetSkyModel",
@@ -6165,7 +6234,9 @@ public class Jass2 {
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("SetIntegerGameState",
 					(arguments, globalScope, triggerScope) -> {
-						// Integer game-state not yet implemented; accepted as no-op
+						final CGameState gameState = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
+						final int value = arguments.get(1).visit(IntegerJassValueVisitor.getInstance());
+						CommonEnvironment.this.integerGameStates.put(gameState, value);
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("HideInterface",
@@ -6175,7 +6246,10 @@ public class Jass2 {
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("CinematicMode",
 					(arguments, globalScope, triggerScope) -> {
-						// Full cinematic-mode integration not yet implemented; accepted as no-op
+						final boolean cinematicMode = arguments.get(0).visit(BooleanJassValueVisitor.getInstance());
+						// Hide interface and disable user control in cinematic mode; restore on exit.
+						meleeUI.showInterface(!cinematicMode, 0f);
+						meleeUI.enableUserControl(!cinematicMode);
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("SetCinematicCamera",
@@ -11477,6 +11551,17 @@ public class Jass2 {
 		final String safeName = new File(cacheName).getName();
 		final String filename = safeName.isEmpty() ? "unnamed.w3v" : safeName;
 		return new File(gamecacheDir, filename);
+	}
+
+	/**
+	 * Returns the {@link File} where a save-game with the given name should be
+	 * stored.  Directory components in {@code saveName} are stripped so that a
+	 * malicious save name cannot escape the saves directory.
+	 */
+	private static File saveGameFileFor(final File saveGameDir, final String saveName) {
+		final String safeName = new File(saveName).getName();
+		final String filename = (safeName.isEmpty() ? "unnamed" : safeName) + ".w3s";
+		return new File(saveGameDir, filename);
 	}
 
 	private static <T> T nullable(final List<JassValue> arguments, final int index, final JassValueVisitor<T> visitor) {
