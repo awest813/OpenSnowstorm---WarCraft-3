@@ -1,5 +1,6 @@
 package com.etheller.warsmash.parsers.jass;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
@@ -103,6 +104,8 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructable;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructableType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CGameCache;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CItem;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.StoredUnitData;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.StoredUnitData.StoredItemData;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CItemType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
@@ -571,6 +574,7 @@ public class Jass2 {
 		private Element skin;
 		private final JassProgram jassProgramVisitor;
 		private CSimulation simulation;
+		private final File gamecacheDir;
 
 		private CommonEnvironment(final JassProgram jassProgramVisitor, final DataSource dataSource,
 				final Viewport uiViewport, final Scene uiScene, final War3MapViewer war3MapViewer,
@@ -579,6 +583,8 @@ public class Jass2 {
 			this.gameUI = war3MapViewer.getGameUI();
 			final Rectangle tempRect = new Rectangle();
 			this.simulation = war3MapViewer.simulation;
+			this.gamecacheDir = new File(
+					System.getProperty("user.home") + File.separator + ".warsmash" + File.separator + "gamecache");
 			final GlobalScope globals = jassProgramVisitor.getGlobalScope();
 			final HandleJassType handleType = globals.registerHandleType("handle");
 			final HandleJassType agentType = globals.registerHandleType("agent");
@@ -5582,16 +5588,34 @@ public class Jass2 {
 			jassProgramVisitor.getJassNativeManager().createNative("InitGameCache",
 					(arguments, globalScope, triggerScope) -> {
 						final String cacheName = nullable(arguments, 0, StringJassValueVisitor.getInstance());
-						return new HandleJassValue(gamecacheType, new CGameCache(cacheName != null ? cacheName : ""));
+						final String name = cacheName != null ? cacheName : "";
+						// Attempt to load a previously saved cache from disk so that inter-map
+						// hero carry-over and campaign state survive across game sessions.
+						final File cacheFile = gamecacheFileFor(CommonEnvironment.this.gamecacheDir, name);
+						final CGameCache loaded = CGameCache.tryLoadFromFile(cacheFile, name);
+						return new HandleJassValue(gamecacheType, loaded != null ? loaded : new CGameCache(name));
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("SaveGameCache",
 					(arguments, globalScope, triggerScope) -> {
-						// Persistence to disk is not yet implemented; return true to indicate success
+						final CGameCache cache = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (cache != null) {
+							final File cacheFile = gamecacheFileFor(CommonEnvironment.this.gamecacheDir,
+									cache.getName());
+							try {
+								cache.save(cacheFile);
+							}
+							catch (final IOException e) {
+								System.err.println("SaveGameCache: failed to persist '" + cache.getName()
+										+ "' to disk: " + e.getMessage());
+							}
+						}
 						return BooleanJassValue.TRUE;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("ReloadGameCachesFromDisk",
 					(arguments, globalScope, triggerScope) -> {
-						return BooleanJassValue.FALSE;
+						// InitGameCache already reloads from disk on demand, so this is a no-op
+						// that returns TRUE to indicate caches are available.
+						return BooleanJassValue.TRUE;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("FlushGameCache",
 					(arguments, globalScope, triggerScope) -> {
@@ -5774,11 +5798,134 @@ public class Jass2 {
 						}
 						return null;
 					});
+			jassProgramVisitor.getJassNativeManager().createNative("StoreUnit",
+					(arguments, globalScope, triggerScope) -> {
+						final CGameCache cache = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						final String missionKey = nullable(arguments, 1, StringJassValueVisitor.getInstance());
+						final String key = nullable(arguments, 2, StringJassValueVisitor.getInstance());
+						final CUnit whichUnit = nullable(arguments, 3, ObjectJassValueVisitor.getInstance());
+						if (cache != null && missionKey != null && key != null && whichUnit != null) {
+							cache.storeUnit(missionKey, key, snapshotUnit(whichUnit));
+							return BooleanJassValue.TRUE;
+						}
+						return BooleanJassValue.FALSE;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("HaveStoredUnit",
+					(arguments, globalScope, triggerScope) -> {
+						final CGameCache cache = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						final String missionKey = nullable(arguments, 1, StringJassValueVisitor.getInstance());
+						final String key = nullable(arguments, 2, StringJassValueVisitor.getInstance());
+						if (cache != null && missionKey != null && key != null) {
+							return BooleanJassValue.of(cache.haveStoredUnit(missionKey, key));
+						}
+						return BooleanJassValue.FALSE;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("FlushStoredUnit",
+					(arguments, globalScope, triggerScope) -> {
+						final CGameCache cache = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						final String missionKey = nullable(arguments, 1, StringJassValueVisitor.getInstance());
+						final String key = nullable(arguments, 2, StringJassValueVisitor.getInstance());
+						if (cache != null && missionKey != null && key != null) {
+							cache.flushStoredUnit(missionKey, key);
+						}
+						return null;
+					});
 			jassProgramVisitor.getJassNativeManager().createNative("RestoreUnit",
 					(arguments, globalScope, triggerScope) -> {
-						// Hero unit restoration from gamecache is not yet implemented
-						System.err.println("RestoreUnit: hero restoration from gamecache not yet implemented");
-						return unitType.getNullValue();
+						final CGameCache cache = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						final String missionKey = nullable(arguments, 1, StringJassValueVisitor.getInstance());
+						final String key = nullable(arguments, 2, StringJassValueVisitor.getInstance());
+						final CPlayer player = nullable(arguments, 3, ObjectJassValueVisitor.getInstance());
+						final float x = arguments.get(4).visit(RealJassValueVisitor.getInstance()).floatValue();
+						final float y = arguments.get(5).visit(RealJassValueVisitor.getInstance()).floatValue();
+						final float facing = arguments.get(6).visit(RealJassValueVisitor.getInstance()).floatValue();
+						if (cache == null || missionKey == null || key == null || player == null) {
+							return unitType.getNullValue();
+						}
+						final StoredUnitData data = cache.getStoredUnit(missionKey, key);
+						if (data == null) {
+							return unitType.getNullValue();
+						}
+						final CUnit restored = CommonEnvironment.this.simulation.createUnitSimple(
+								data.unitTypeId, player.getId(), x, y, facing);
+						if (restored == null) {
+							return unitType.getNullValue();
+						}
+						// Apply hero stats
+						final CAbilityHero heroData = restored.getHeroData();
+						if (heroData != null) {
+							if (data.strengthBase != heroData.getStrength().getBase()) {
+								heroData.setStrengthBase(CommonEnvironment.this.simulation, restored,
+										data.strengthBase);
+							}
+							if (data.agilityBase != heroData.getAgility().getBase()) {
+								heroData.setAgilityBase(CommonEnvironment.this.simulation, restored,
+										data.agilityBase);
+							}
+							if (data.intelligenceBase != heroData.getIntelligence().getBase()) {
+								heroData.setIntelligenceBase(CommonEnvironment.this.simulation, restored,
+										data.intelligenceBase);
+							}
+							if (data.strengthBonus != 0) {
+								heroData.addStrengthBonus(CommonEnvironment.this.simulation, restored,
+										data.strengthBonus);
+							}
+							if (data.agilityBonus != 0) {
+								heroData.addAgilityBonus(CommonEnvironment.this.simulation, restored,
+										data.agilityBonus);
+							}
+							if (data.intelligenceBonus != 0) {
+								heroData.addIntelligenceBonus(CommonEnvironment.this.simulation, restored,
+										data.intelligenceBonus);
+							}
+							// SetXP will level up the hero to match the stored XP
+							heroData.setXp(CommonEnvironment.this.simulation, restored, data.xp, false);
+							heroData.setSkillPoints(data.skillPoints);
+						}
+						// Restore inventory items
+						final CAbilityInventory inventoryData = restored.getInventoryData();
+						if (inventoryData != null && data.items != null) {
+							for (int slot = 0; slot < data.items.length; slot++) {
+								final StoredItemData itemData = data.items[slot];
+								if (itemData != null) {
+									final CItem newItem = CommonEnvironment.this.simulation
+											.createItem(itemData.typeId, x, y);
+									if (newItem != null) {
+										newItem.setCharges(itemData.charges);
+										inventoryData.giveItem(CommonEnvironment.this.simulation, restored, newItem,
+												slot, false);
+									}
+								}
+							}
+						}
+						player.addTechtreeUnlocked(CommonEnvironment.this.simulation, data.unitTypeId);
+						return new HandleJassValue(unitType, restored);
+					});
+			// Campaign availability natives - used by campaign scripts to control which
+			// missions are visible/accessible.  The engine does not yet track mission
+			// availability state, so these are no-ops that keep scripts from crashing.
+			jassProgramVisitor.getJassNativeManager().createNative("SetMissionAvailable",
+					(arguments, globalScope, triggerScope) -> {
+						// no-op: mission availability is not tracked by the engine
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetMissionAvailable",
+					(arguments, globalScope, triggerScope) -> {
+						// Always report missions as available so campaign progression is unblocked
+						return BooleanJassValue.TRUE;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("SetCampaignMenuRace",
+					(arguments, globalScope, triggerScope) -> {
+						// no-op: campaign menu race is a UI concern not yet implemented
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCampaignMenuRace",
+					(arguments, globalScope, triggerScope) -> {
+						return IntegerJassValue.of(0);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("SetCampaignMenuRaceEx",
+					(arguments, globalScope, triggerScope) -> {
+						return null;
 					});
 			// Patch 1.23+ crap
 			// jassProgramVisitor.getJassNativeManager().createNative("InitHashtable", new
@@ -10030,6 +10177,60 @@ public class Jass2 {
 					return IntegerJassValue
 							.of(simulation.getSeededRandom().nextInt((highBound - lowBound) + 1) + lowBound);
 				});
+	}
+
+	/**
+	 * Builds a {@link StoredUnitData} snapshot from a live unit.  Captures hero
+	 * stat bases/bonuses, XP, skill points, proper name, and inventory items.
+	 */
+	private static StoredUnitData snapshotUnit(final CUnit unit) {
+		int xp = 0;
+		int skillPoints = 0;
+		int strBase = 0;
+		int agiBase = 0;
+		int intBase = 0;
+		int strBonus = 0;
+		int agiBonus = 0;
+		int intBonus = 0;
+		String properName = "";
+		final CAbilityHero heroData = unit.getHeroData();
+		if (heroData != null) {
+			xp = heroData.getXp();
+			skillPoints = heroData.getSkillPoints();
+			strBase = heroData.getStrength().getBase();
+			agiBase = heroData.getAgility().getBase();
+			intBase = heroData.getIntelligence().getBase();
+			strBonus = heroData.getStrength().getBonus();
+			agiBonus = heroData.getAgility().getBonus();
+			intBonus = heroData.getIntelligence().getBonus();
+			properName = heroData.getProperName();
+		}
+		StoredUnitData.StoredItemData[] items = null;
+		final CAbilityInventory inventoryData = unit.getInventoryData();
+		if (inventoryData != null) {
+			items = new StoredUnitData.StoredItemData[inventoryData.getItemCapacity()];
+			for (int slot = 0; slot < inventoryData.getItemCapacity(); slot++) {
+				final CItem item = inventoryData.getItemInSlot(slot);
+				if (item != null) {
+					items[slot] = new StoredUnitData.StoredItemData(item.getTypeId(), item.getCharges());
+				}
+			}
+		}
+		return new StoredUnitData(unit.getTypeId(), xp, skillPoints, strBase, agiBase, intBase,
+				strBonus, agiBonus, intBonus, properName, items);
+	}
+
+	/**
+	 * Returns the {@link File} where a gamecache with the given name should be
+	 * stored.  The filename component is sanitised to remove any path separators so
+	 * a malicious cache name cannot escape the gamecache directory.
+	 */
+	private static File gamecacheFileFor(final File gamecacheDir, final String cacheName) {
+		// Strip any directory components from the cache name (WC3 only uses the
+		// base filename, e.g. "HeroData.w3v").
+		final String safeName = new File(cacheName).getName();
+		final String filename = safeName.isEmpty() ? "unnamed.w3v" : safeName;
+		return new File(gamecacheDir, filename);
 	}
 
 	private static <T> T nullable(final List<JassValue> arguments, final int index, final JassValueVisitor<T> visitor) {
