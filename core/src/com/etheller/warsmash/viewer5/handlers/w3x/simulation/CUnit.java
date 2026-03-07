@@ -139,6 +139,8 @@ public class CUnit extends CWidget {
 
 	private static RegionCheckerImpl regionCheckerImpl = new RegionCheckerImpl();
 
+	private final ExperienceHeroEnumFunction experienceHeroEnumFunction = new ExperienceHeroEnumFunction();
+
 	private War3ID typeId;
 	private float facing; // degrees
 	private float mana;
@@ -3060,20 +3062,15 @@ public class CUnit extends CWidget {
 					else {
 						availableAwardXp = gameplayConstants.getGrantNormalXP(this.unitType.getLevel());
 					}
-					final List<CUnit> xpReceivingHeroes = new ArrayList<>();
 					final int heroExpRange = gameplayConstants.getHeroExpRange();
-					simulation.getWorldCollision().enumUnitsInRect(new Rectangle(getX() - heroExpRange,
-							getY() - heroExpRange, heroExpRange * 2, heroExpRange * 2), new CUnitEnumFunction() {
-								@Override
-								public boolean call(final CUnit unit) {
-									if ((unit.distance(killedUnit) <= heroExpRange)
-											&& sourcePlayer.hasAlliance(unit.getPlayerIndex(), CAllianceType.SHARED_XP)
-											&& unit.isHero() && !unit.isDead()) {
-										xpReceivingHeroes.add(unit);
-									}
-									return false;
-								}
-							});
+					// ⚡ Bolt Optimization: Use a cached EnumFunction and tempRect to prevent
+					// allocating an anonymous class, ArrayList, and Rectangle on every unit death.
+					// This reduces GC pressure during large battles.
+					final ExperienceHeroEnumFunction enumFunction = this.experienceHeroEnumFunction.reset(killedUnit, sourcePlayer,
+							heroExpRange);
+					tempRect.set(getX() - heroExpRange, getY() - heroExpRange, heroExpRange * 2, heroExpRange * 2);
+					simulation.getWorldCollision().enumUnitsInRect(tempRect, enumFunction);
+					final List<CUnit> xpReceivingHeroes = enumFunction.getAndClear();
 					if (xpReceivingHeroes.isEmpty()) {
 						if (gameplayConstants.isGlobalExperience()) {
 							for (int i = 0; i < WarsmashConstants.MAX_PLAYERS; i++) {
@@ -3652,6 +3649,38 @@ public class CUnit extends CWidget {
 			}
 
 			return false;
+		}
+	}
+
+	private static final class ExperienceHeroEnumFunction implements CUnitEnumFunction {
+		private CUnit killedUnit;
+		private CPlayer sourcePlayer;
+		private int heroExpRange;
+		private final List<CUnit> xpReceivingHeroes = new ArrayList<>();
+
+		public ExperienceHeroEnumFunction reset(final CUnit killedUnit, final CPlayer sourcePlayer,
+				final int heroExpRange) {
+			this.killedUnit = killedUnit;
+			this.sourcePlayer = sourcePlayer;
+			this.heroExpRange = heroExpRange;
+			this.xpReceivingHeroes.clear();
+			return this;
+		}
+
+		@Override
+		public boolean call(final CUnit unit) {
+			if ((unit.distance(this.killedUnit) <= this.heroExpRange)
+					&& this.sourcePlayer.hasAlliance(unit.getPlayerIndex(), CAllianceType.SHARED_XP)
+					&& unit.isHero() && !unit.isDead()) {
+				this.xpReceivingHeroes.add(unit);
+			}
+			return false;
+		}
+
+		public List<CUnit> getAndClear() {
+			this.killedUnit = null;
+			this.sourcePlayer = null;
+			return this.xpReceivingHeroes;
 		}
 	}
 
