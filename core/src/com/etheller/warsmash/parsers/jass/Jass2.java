@@ -3757,6 +3757,31 @@ public class Jass2 {
 						}
 						return IntegerJassValue.of(0);
 					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetHeroXPRequired",
+					(arguments, globalScope, triggerScope) -> {
+						final CUnit whichUnit = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (whichUnit != null) {
+							final CAbilityHero heroData = whichUnit.getHeroData();
+							if (heroData != null) {
+								return IntegerJassValue.of(
+										CommonEnvironment.this.simulation.getGameplayConstants()
+												.getNeedHeroXPSum(heroData.getHeroLevel()));
+							}
+						}
+						return IntegerJassValue.of(0);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetUnitRace",
+					(arguments, globalScope, triggerScope) -> {
+						final CUnit whichUnit = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (whichUnit != null) {
+							final com.etheller.warsmash.viewer5.handlers.w3x.simulation.data.CUnitRace race = whichUnit
+									.getUnitType().getRace();
+							if (race != null) {
+								return new HandleJassValue(raceType, race);
+							}
+						}
+						return raceType.getNullValue();
+					});
 			jassProgramVisitor.getJassNativeManager().createNative("GetHeroStr",
 					(arguments, globalScope, triggerScope) -> {
 						final CUnit whichUnit = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
@@ -5283,6 +5308,64 @@ public class Jass2 {
 								.floatValue();
 						meleeUI.getCameraManager().resetToGameCamera(forceDuration);
 						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCameraField",
+					(arguments, globalScope, triggerScope) -> {
+						final CCameraField field = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						if (field == null) {
+							return RealJassValue.ZERO;
+						}
+						switch (field) {
+						case TARGET_DISTANCE:
+							return RealJassValue.of(meleeUI.getCameraManager().distance);
+						case ANGLE_OF_ATTACK:
+							return RealJassValue.of(meleeUI.getCameraManager().verticalAngle);
+						case ROTATION:
+							return RealJassValue.of(meleeUI.getCameraManager().horizontalAngle);
+						case ZOFFSET:
+							return RealJassValue.of(meleeUI.getCameraManager().getTargetZOffset());
+						default:
+							return RealJassValue.ZERO;
+						}
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCameraTargetPositionX",
+					(arguments, globalScope, triggerScope) -> {
+						return RealJassValue.of(meleeUI.getCameraManager().target.x);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCameraTargetPositionY",
+					(arguments, globalScope, triggerScope) -> {
+						return RealJassValue.of(meleeUI.getCameraManager().target.y);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCameraTargetPositionZ",
+					(arguments, globalScope, triggerScope) -> {
+						return RealJassValue.of(meleeUI.getCameraManager().getTargetZOffset());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCameraTargetPositionLoc",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(locationType,
+								new LocationJass(meleeUI.getCameraManager().target.x,
+										meleeUI.getCameraManager().target.y,
+										CommonEnvironment.this.simulation.getHandleIdAllocator().createId()));
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCameraEyePositionX",
+					(arguments, globalScope, triggerScope) -> {
+						// Approximate: eye = target (for 2D uses that only need X/Y)
+						return RealJassValue.of(meleeUI.getCameraManager().target.x);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCameraEyePositionY",
+					(arguments, globalScope, triggerScope) -> {
+						return RealJassValue.of(meleeUI.getCameraManager().target.y);
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCameraEyePositionZ",
+					(arguments, globalScope, triggerScope) -> {
+						return RealJassValue.of(meleeUI.getCameraManager().getTargetZOffset());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetCameraEyePositionLoc",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(locationType,
+								new LocationJass(meleeUI.getCameraManager().target.x,
+										meleeUI.getCameraManager().target.y,
+										CommonEnvironment.this.simulation.getHandleIdAllocator().createId()));
 					});
 			// Quest system — state tracked internally so IsQuestCompleted etc. return
 			// correct values; no UI rendering is implemented yet.
