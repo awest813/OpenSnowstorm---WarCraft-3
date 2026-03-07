@@ -522,6 +522,17 @@ public class CommonTriggerExecutionScope extends TriggerExecutionScope {
 		return scope;
 	}
 
+	/**
+	 * Creates a minimal execution scope for game-level events (no widget context).
+	 * Used for EVENT_GAME_VICTORY, EVENT_GAME_END_LEVEL, EVENT_GAME_SAVE, etc.
+	 */
+	public static CommonTriggerExecutionScope gameEventScope(final JassGameEventsWar3 triggerEventId,
+			final Trigger trigger) {
+		final CommonTriggerExecutionScope scope = new CommonTriggerExecutionScope(trigger, TriggerExecutionScope.EMPTY);
+		scope.triggerEventId = triggerEventId;
+		return scope;
+	}
+
 	public static CommonTriggerExecutionScope unitEnterRegionScope(final JassGameEventsWar3 triggerEventId,
 			final Trigger trigger, final TriggerExecutionScope parentScope, final CUnit enteringUnit,
 			final CRegion triggeringRegion) {

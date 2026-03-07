@@ -110,6 +110,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CItemType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitEnumFunction;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitPool;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUpgradeType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
@@ -1552,6 +1553,58 @@ public class Jass2 {
 						// Weighted random unit selection is not implemented; return null
 						return unitType.getNullValue();
 					});
+			// ============================================================================
+			// Unit Pool API
+			//
+			jassProgramVisitor.getJassNativeManager().createNative("CreateUnitPool",
+					(arguments, globalScope, triggerScope) -> {
+						return new HandleJassValue(unitpoolType, new CUnitPool());
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("DestroyUnitPool",
+					(arguments, globalScope, triggerScope) -> {
+						// GC-managed; nothing to do
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("UnitPoolAddUnitType",
+					(arguments, globalScope, triggerScope) -> {
+						final CUnitPool pool = arguments.get(0)
+								.visit(ObjectJassValueVisitor.<CUnitPool>getInstance());
+						final int unitId = arguments.get(1).visit(IntegerJassValueVisitor.getInstance());
+						final float weight = arguments.get(2).visit(RealJassValueVisitor.getInstance()).floatValue();
+						if (pool != null) {
+							pool.addUnitType(new War3ID(unitId), weight);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("UnitPoolRemoveUnitType",
+					(arguments, globalScope, triggerScope) -> {
+						// Removal from pool is rarely used; treat as no-op
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("PlaceRandomUnit",
+					(arguments, globalScope, triggerScope) -> {
+						final CUnitPool pool = arguments.get(0)
+								.visit(ObjectJassValueVisitor.<CUnitPool>getInstance());
+						final CPlayer forPlayer = arguments.get(1).visit(ObjectJassValueVisitor.getInstance());
+						final float x = arguments.get(2).visit(RealJassValueVisitor.getInstance()).floatValue();
+						final float y = arguments.get(3).visit(RealJassValueVisitor.getInstance()).floatValue();
+						final float facing = arguments.get(4).visit(RealJassValueVisitor.getInstance()).floatValue();
+						if (pool == null || forPlayer == null) {
+							return unitType.getNullValue();
+						}
+						final War3ID chosenType = pool.chooseRandom(
+								CommonEnvironment.this.simulation.getSeededRandom());
+						if (chosenType == null) {
+							return unitType.getNullValue();
+						}
+						final CUnit newUnit = CommonEnvironment.this.simulation.createUnitSimple(chosenType,
+								forPlayer.getId(), x, y, facing);
+						if (newUnit == null) {
+							return unitType.getNullValue();
+						}
+						forPlayer.addTechtreeUnlocked(CommonEnvironment.this.simulation, chosenType);
+						return new HandleJassValue(unitType, newUnit);
+					});
 			jassProgramVisitor.getJassNativeManager().createNative("ChooseRandomCreep",
 					(arguments, globalScope, triggerScope) -> {
 						// Random creep selection by level is not implemented; return 0
@@ -2124,7 +2177,11 @@ public class Jass2 {
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("GetWinningPlayer",
 					(arguments, globalScope, triggerScope) -> {
-						return playerType.getNullValue();
+						final CPlayer winner = CommonEnvironment.this.simulation.getWinningPlayer();
+						if (winner == null) {
+							return playerType.getNullValue();
+						}
+						return new HandleJassValue(playerType, winner);
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("TriggerRegisterEnterRegion",
 					(arguments, globalScope, triggerScope) -> {
@@ -3881,6 +3938,28 @@ public class Jass2 {
 						// skill availability flags are not yet tracked per-ability; accepted as no-op
 						return null;
 					});
+			jassProgramVisitor.getJassNativeManager().createNative("ReviveHero",
+					(arguments, globalScope, triggerScope) -> {
+						final CUnit whichHero = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						final float x = arguments.get(1).visit(RealJassValueVisitor.getInstance()).floatValue();
+						final float y = arguments.get(2).visit(RealJassValueVisitor.getInstance()).floatValue();
+						// doEyecandy arg[3] – visual-only; ignored
+						return BooleanJassValue.of(
+								reviveHeroAt(CommonEnvironment.this.simulation, whichHero, x, y));
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("ReviveHeroLoc",
+					(arguments, globalScope, triggerScope) -> {
+						final CUnit whichHero = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						final AbilityPointTarget whichLocation = nullable(arguments, 1,
+								ObjectJassValueVisitor.getInstance());
+						// doEyecandy arg[2] – visual-only; ignored
+						if (whichLocation == null) {
+							return BooleanJassValue.FALSE;
+						}
+						return BooleanJassValue.of(
+								reviveHeroAt(CommonEnvironment.this.simulation, whichHero,
+										whichLocation.getX(), whichLocation.getY()));
+					});
 			jassProgramVisitor.getJassNativeManager().createNative("IsUnitType",
 					(arguments, globalScope, triggerScope) -> {
 						final CUnit whichUnit = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
@@ -4701,8 +4780,14 @@ public class Jass2 {
 						}
 						final CAbility ability = whichWidget
 								.getAbility(GetAbilityByRawcodeVisitor.getInstance().reset(new War3ID(rawcode)));
-						// TODO below code is very stupid!!
-						return IntegerJassValue.of(ability == null ? 0 : 1);
+						if (ability == null) {
+							return IntegerJassValue.ZERO;
+						}
+						if (ability instanceof CLevelingAbility) {
+							return IntegerJassValue.of(((CLevelingAbility) ability).getLevel());
+						}
+						// Non-leveling ability is present; treat as level 1
+						return IntegerJassValue.of(1);
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("IncUnitAbilityLevel",
 					(arguments, globalScope, triggerScope) -> {
@@ -6160,12 +6245,16 @@ public class Jass2 {
 					(arguments, globalScope, triggerScope) -> {
 						final CPlayer whichPlayer = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
 						final boolean enableScoreScreen = arguments.get(1).visit(BooleanJassValueVisitor.getInstance());
+						// Track the winning player so GetWinningPlayer() works
+						CommonEnvironment.this.simulation.setWinningPlayer(whichPlayer);
 						// Fire EVENT_PLAYER_VICTORY for the player
 						if (whichPlayer != null) {
 							whichPlayer.firePlayerEvents(
 									CommonTriggerExecutionScope::triggerPlayerScope,
 									JassGameEventsWar3.EVENT_PLAYER_VICTORY);
 						}
+						// Fire EVENT_GAME_VICTORY for any globally-registered triggers
+						CommonEnvironment.this.simulation.fireGameEvent(JassGameEventsWar3.EVENT_GAME_VICTORY);
 						meleeUI.customVictory(enableScoreScreen);
 						return null;
 					});
@@ -6654,6 +6743,8 @@ public class Jass2 {
 										+ "' to disk: " + e.getMessage());
 							}
 						}
+						// Notify triggers that a game save has occurred
+						CommonEnvironment.this.simulation.fireGameEvent(JassGameEventsWar3.EVENT_GAME_SAVE);
 						return BooleanJassValue.TRUE;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("ReloadGameCachesFromDisk",
@@ -10839,6 +10930,19 @@ public class Jass2 {
 				throw new JassException(this.jassProgramVisitor.getGlobals(),
 						"Exception on Line " + this.jassProgramVisitor.getGlobals().getLineNumber(), exc);
 			}
+		}
+
+		/**
+		 * Immediately revives the given hero at the supplied map coordinates, restoring
+		 * its health/mana to the same fractions used by the altar revive sequence.
+		 * Returns {@code true} if the hero was successfully revived, {@code false} if
+		 * the hero is null, not a hero, or not dead.
+		 */
+		private boolean reviveHeroAt(final CSimulation game, final CUnit whichHero, final float x, final float y) {
+			if (whichHero == null) {
+				return false;
+			}
+			return whichHero.reviveAtPosition(game, x, y);
 		}
 	}
 

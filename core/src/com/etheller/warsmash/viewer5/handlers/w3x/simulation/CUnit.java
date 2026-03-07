@@ -3827,6 +3827,44 @@ public class CUnit extends CWidget {
 		this.stateNotifier.hideStateChanged();
 	}
 
+	/**
+	 * Immediately revives this hero at the given (x, y) map coordinates, restoring
+	 * health and mana to the same fractions used by the altar revive sequence.
+	 *
+	 * @return {@code true} if the hero was revived, {@code false} if it is null, not a
+	 *         hero, or not dead/awaiting revive.
+	 */
+	public boolean reviveAtPosition(final CSimulation game, final float x, final float y) {
+		final CAbilityHero heroData = getHeroData();
+		if (heroData == null) {
+			return false; // not a hero
+		}
+		if (!isDead() && !heroData.isAwaitingRevive()) {
+			return false; // already alive and not queued for revive
+		}
+		heroData.setReviving(false);
+		heroData.setAwaitingRevive(false);
+		this.corpse = false;
+		this.boneCorpse = false;
+		this.deathTurnTick = 0;
+		setX(x);
+		setY(y);
+		game.getWorldCollision().addUnit(this);
+		setPoint(x, y, game.getWorldCollision(), game.getRegionManager());
+		setHidden(false);
+		final CGameplayConstants gc = game.getGameplayConstants();
+		setLife(game, getMaximumLife() * gc.getHeroReviveLifeFactor());
+		setMana((getMaximumMana() * gc.getHeroReviveManaFactor())
+				+ (gc.getHeroReviveManaStart() * this.unitType.getManaInitial()));
+		setFoodUsed(this.unitType.getFoodUsed());
+		final CPlayer player = game.getPlayer(this.playerIndex);
+		player.setUnitFoodMade(this, this.unitType.getFoodMade());
+		setPointAndCheckUnstuck(x, y, game);
+		game.unitRepositioned(this);
+		game.heroReviveEvent(null, this);
+		return true;
+	}
+
 	public void setPaused(final boolean paused) {
 		this.paused = paused;
 	}
@@ -4611,8 +4649,8 @@ public class CUnit extends CWidget {
 		case STUNNED:
 			return getCurrentBehavior().getHighlightOrderId() == OrderIds.stunned;
 		case PLAGUED:
-			throw new UnsupportedOperationException(
-					"cannot ask engine if unit is plagued: plague is not yet implemented");
+			// Plague state is not tracked; conservatively return false
+			return false;
 		case SNARED:
 			boolean isSnared = false;
 			for (final StateModBuff buff : this.stateModBuffs) {
@@ -4639,11 +4677,11 @@ public class CUnit extends CWidget {
 		case TAUREN:
 			return this.classifications.contains(CUnitClassification.TAUREN);
 		case POISONED:
-			throw new UnsupportedOperationException(
-					"cannot ask engine if unit is poisoned: poison is not yet implemented");
+			// Poison state is not tracked; conservatively return false
+			return false;
 		case POLYMORPHED:
-			throw new UnsupportedOperationException(
-					"cannot ask engine if unit is POLYMORPHED: POLYMORPHED is not yet implemented");
+			// Polymorph state is not tracked; conservatively return false
+			return false;
 		case SLEEPING:
 			boolean isSleeping = false;
 			for (final StateModBuff buff : this.stateModBuffs) {

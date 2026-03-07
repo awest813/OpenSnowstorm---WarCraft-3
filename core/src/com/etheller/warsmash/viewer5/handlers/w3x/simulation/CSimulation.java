@@ -137,6 +137,8 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 	private final List<Runnable> postUpdateCallbacks = new ArrayList<>();
 	private final List<Runnable> runningPostUpdateCallbacks = new ArrayList<>();
 	private final ObjectPool<Set<CTimer>> timerSetPool = new ObjectPool<>(2, HashSet::new);
+	/** The player that triggered the most recent CustomVictory call, or null. */
+	private CPlayer winningPlayer = null;
 
 	public CSimulation(final War3MapConfig config, final int mapVersion, final DataTable miscData,
 			final ObjectData parsedUnitData, final ObjectData parsedItemData, final ObjectData parsedDestructableData,
@@ -722,6 +724,14 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		return this.players.get(index);
 	}
 
+	public CPlayer getWinningPlayer() {
+		return this.winningPlayer;
+	}
+
+	public void setWinningPlayer(final CPlayer player) {
+		this.winningPlayer = player;
+	}
+
 	public CPlayerUnitOrderExecutor getDefaultPlayerUnitOrderExecutor(final int index) {
 		return this.defaultPlayerUnitOrderExecutors.get(index);
 	}
@@ -919,12 +929,35 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 
 	public RemovableTriggerEvent registerGameEvent(final GlobalScope globalScope, final Trigger trigger,
 			final JassGameEventsWar3 gameEvent) {
-		System.err.println("Game event not yet implemented: " + gameEvent);
-		return new RemovableTriggerEvent(trigger) {
-			@Override
-			public void remove() {
+		switch (gameEvent) {
+		case EVENT_GAME_VICTORY:
+		case EVENT_GAME_END_LEVEL:
+		case EVENT_GAME_SAVE:
+		case EVENT_GAME_LOADED: {
+			final CGlobalGameEvent event = new CGlobalGameEvent(this, globalScope, trigger, gameEvent, null);
+			addGlobalEvent(event);
+			return event;
+		}
+		default:
+			System.err.println("Game event not yet implemented: " + gameEvent);
+			return new RemovableTriggerEvent(trigger) {
+				@Override
+				public void remove() {
+				}
+			};
+		}
+	}
+
+	/**
+	 * Fires all triggers registered for the given game-level event.
+	 */
+	public void fireGameEvent(final JassGameEventsWar3 eventType) {
+		final List<CGlobalEvent> eventList = getEventList(eventType);
+		if (eventList != null) {
+			for (final CGlobalEvent event : new ArrayList<>(eventList)) {
+				event.fire(null, null);
 			}
-		};
+		}
 	}
 
 	private List<CGlobalEvent> getOrCreateEventList(final JassGameEventsWar3 eventType) {
