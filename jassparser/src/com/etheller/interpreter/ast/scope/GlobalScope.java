@@ -230,6 +230,14 @@ public final class GlobalScope {
 		return this.fastGlobals.get(name);
 	}
 
+	/**
+	 * Returns an unmodifiable view of all named globals, keyed by variable name.
+	 * Intended for save-game serialization; callers must not modify the map.
+	 */
+	public Map<String, GlobalScopeAssignable> getAllGlobals() {
+		return java.util.Collections.unmodifiableMap(this.fastGlobals);
+	}
+
 	public void defineFunction(final int lineNo, final String sourceFile, final String name,
 			final NativeJassFunction function) {
 		final int nativeId = this.indexedNativeFunctions.size();
@@ -652,7 +660,15 @@ public final class GlobalScope {
 			catch (final Exception exc) {
 				final JassException jassException = new JassException(this, "runThreads() encountered exception", exc);
 				JassLog.report(jassException);
-				throw jassException;
+				if (JassSettings.CONTINUE_EXECUTING_ON_ERROR) {
+					// Drop the faulting thread and continue; do not propagate to game loop.
+					this.threads.remove(threadIndex);
+					this.yieldedCurrentThread = false;
+					continue;
+				}
+				else {
+					throw jassException;
+				}
 			}
 			if (this.yieldedCurrentThread) {
 				this.currentThread.setSleeping(false);
@@ -694,13 +710,22 @@ public final class GlobalScope {
 			final Trigger trigger, final TriggerExecutionScope evaluateScope,
 			final TriggerExecutionScope executeScope) {
 		if (trigger.isEnabled()) {
-			if (filter != null) {
-				if (!filter.evaluate(this, filterScope)) {
-					return;
+			try {
+				if (filter != null) {
+					if (!filter.evaluate(this, filterScope)) {
+						return;
+					}
+				}
+				if (trigger.evaluate(this, evaluateScope)) {
+					trigger.execute(this, executeScope);
 				}
 			}
-			if (trigger.evaluate(this, evaluateScope)) {
-				trigger.execute(this, executeScope);
+			catch (final Exception exc) {
+				final JassException jassException = new JassException(this, "queueTrigger() encountered exception", exc);
+				JassLog.report(jassException);
+				if (!JassSettings.CONTINUE_EXECUTING_ON_ERROR) {
+					throw jassException;
+				}
 			}
 		}
 	}
