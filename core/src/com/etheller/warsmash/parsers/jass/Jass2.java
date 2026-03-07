@@ -4761,6 +4761,21 @@ public class Jass2 {
 						final CPlayer whichPlayer = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
 						return RealJassValue.of(whichPlayer.getHandicap());
 					});
+			jassProgramVisitor.getJassNativeManager().createNative("SetPlayerHandicap",
+					(arguments, globalScope, triggerScope) -> {
+						final CPlayer whichPlayer = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						final float handicap = arguments.get(1).visit(RealJassValueVisitor.getInstance()).floatValue();
+						if (whichPlayer != null) {
+							whichPlayer.setHandicap(handicap);
+						}
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("GetPlayerHandicapXP",
+					(arguments, globalScope, triggerScope) -> {
+						final CPlayer whichPlayer = nullable(arguments, 0, ObjectJassValueVisitor.getInstance());
+						return RealJassValue
+								.of(whichPlayer != null ? whichPlayer.getHandicapXP() : 1.0f);
+					});
 			jassProgramVisitor.getJassNativeManager().createNative("GetHandleId",
 					(arguments, globalScope, triggerScope) -> {
 						final CHandle whichHandle = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
@@ -5794,6 +5809,12 @@ public class Jass2 {
 						final CUnit whichUnit = arguments.get(0).visit(ObjectJassValueVisitor.getInstance());
 						final boolean flag = arguments.get(1).visit(BooleanJassValueVisitor.getInstance());
 						whichUnit.setExplodesOnDeath(flag);
+						return null;
+					});
+			jassProgramVisitor.getJassNativeManager().createNative("SetUnitPathing",
+					(arguments, globalScope, triggerScope) -> {
+						// Dynamic pathing enable/disable per unit is not yet implemented; accepted as
+						// no-op so cinematic scripts that disable pathing don't crash
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("GetTriggerWidget",
