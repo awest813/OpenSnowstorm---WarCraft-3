@@ -61,8 +61,12 @@ public class YseraPanel extends JPanel {
 
 		final JMenu fileMenu = new JMenu("File");
 		fileMenu.setMnemonic(KeyEvent.VK_F);
+		fileMenu.setToolTipText("File Operations");
+		fileMenu.getAccessibleContext().setAccessibleName("File Operations");
 		final JMenuItem openItem = new JMenuItem("Open");
 		openItem.setMnemonic(KeyEvent.VK_O);
+		openItem.setToolTipText("Open Model");
+		openItem.getAccessibleContext().setAccessibleName("Open Model");
 		openItem.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(final ActionEvent e) {
@@ -86,23 +90,37 @@ public class YseraPanel extends JPanel {
 		jMenuBar.add(fileMenu);
 		final JMenu recentFilesMenu = new JMenu("Recent Files");
 		recentFilesMenu.setMnemonic(KeyEvent.VK_R);
+		recentFilesMenu.setToolTipText("Recent Files");
+		recentFilesMenu.getAccessibleContext().setAccessibleName("Recent Files");
 		jMenuBar.add(recentFilesMenu);
 		final JMenu editMenu = new JMenu("Edit");
 		editMenu.setMnemonic(KeyEvent.VK_E);
+		editMenu.setToolTipText("Edit");
+		editMenu.getAccessibleContext().setAccessibleName("Edit");
 		jMenuBar.add(editMenu);
 		final JMenu viewMenu = new JMenu("View");
 		viewMenu.setMnemonic(KeyEvent.VK_V);
+		viewMenu.setToolTipText("View");
+		viewMenu.getAccessibleContext().setAccessibleName("View");
 		jMenuBar.add(viewMenu);
 		final JMenu teamColorMenu = new JMenu("Team Color");
 		teamColorMenu.setMnemonic(KeyEvent.VK_T);
+		teamColorMenu.setToolTipText("Team Color");
+		teamColorMenu.getAccessibleContext().setAccessibleName("Team Color");
 		jMenuBar.add(teamColorMenu);
 		final JMenu windowMenu = new JMenu("Windows");
 		windowMenu.setMnemonic(KeyEvent.VK_W);
+		windowMenu.setToolTipText("Windows");
+		windowMenu.getAccessibleContext().setAccessibleName("Windows");
 		final JMenuItem modelEditorItem = new JMenuItem("Model Editor");
 		modelEditorItem.setMnemonic(KeyEvent.VK_M);
+		modelEditorItem.setToolTipText("Model Editor");
+		modelEditorItem.getAccessibleContext().setAccessibleName("Model Editor");
 		windowMenu.add(modelEditorItem);
 		final JMenuItem animationControllerItem = new JMenuItem("Animation Controller");
 		animationControllerItem.setMnemonic(KeyEvent.VK_A);
+		animationControllerItem.setToolTipText("Animation Controller");
+		animationControllerItem.getAccessibleContext().setAccessibleName("Animation Controller");
 		animationControllerItem.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(final ActionEvent e) {
@@ -120,9 +138,13 @@ public class YseraPanel extends JPanel {
 		jMenuBar.add(windowMenu);
 		final JMenu extrasMenu = new JMenu("Extras");
 		extrasMenu.setMnemonic(KeyEvent.VK_X);
+		extrasMenu.setToolTipText("Extras");
+		extrasMenu.getAccessibleContext().setAccessibleName("Extras");
 		jMenuBar.add(extrasMenu);
 		final JMenu helpMenu = new JMenu("Help");
 		helpMenu.setMnemonic(KeyEvent.VK_H);
+		helpMenu.setToolTipText("Help");
+		helpMenu.getAccessibleContext().setAccessibleName("Help");
 		jMenuBar.add(helpMenu);
 
 		return jMenuBar;

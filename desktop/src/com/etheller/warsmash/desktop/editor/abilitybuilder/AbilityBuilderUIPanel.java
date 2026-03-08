@@ -70,10 +70,14 @@ public class AbilityBuilderUIPanel extends JPanel {
 		JMenuBar menuBar = new JMenuBar();
 		JMenu fileMenu = new JMenu("File");
 		fileMenu.setMnemonic(KeyEvent.VK_F);
+		fileMenu.setToolTipText("File Operations");
+		fileMenu.getAccessibleContext().setAccessibleName("File Operations");
 		menuBar.add(fileMenu);
 
 		JMenuItem openItem = new JMenuItem("Open");
 		openItem.setMnemonic(KeyEvent.VK_O);
+		openItem.setToolTipText("Open Ability Definition");
+		openItem.getAccessibleContext().setAccessibleName("Open Ability Definition");
 		openItem.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
