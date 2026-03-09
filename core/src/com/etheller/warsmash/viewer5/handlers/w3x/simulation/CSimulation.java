@@ -598,8 +598,14 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 		this.addedOnTickTriggers.clear();
 		for (final Trigger trigger : this.onTickTriggers) {
 			final TriggerExecutionScope triggerScope = trigger.getTriggerExecutionScope();
-			if (trigger.evaluate(this.globalScope, triggerScope)) {
-				trigger.execute(this.globalScope, triggerScope);
+			try {
+				if (trigger.evaluate(this.globalScope, triggerScope)) {
+					trigger.execute(this.globalScope, triggerScope);
+				}
+			}
+			catch (final Exception exc) {
+				System.err.println("CSimulation: on-tick trigger error (" + exc.getClass().getSimpleName()
+						+ ": " + exc.getMessage() + ") — continuing");
 			}
 		}
 		this.onTickTriggers.removeAll(this.removedOnTickTriggers);
@@ -1057,7 +1063,10 @@ public class CSimulation implements CPlayerAPI, CFogMaskSettings {
 
 	public void removeItem(final CItem cItem) {
 		cItem.forceDropIfHeld(this);
-		cItem.setHidden(true); // TODO fix
+		this.worldCollision.removeItem(cItem);
+		this.handleIdToItem.remove(cItem.getHandleId());
+		this.items.remove(cItem);
+		cItem.setHidden(true);
 		cItem.setLife(this, 0);
 	}
 

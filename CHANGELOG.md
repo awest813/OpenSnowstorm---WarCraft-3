@@ -15,6 +15,56 @@ Changes are grouped by category:
 
 ---
 
+## Campaign Reliability Pass (2026-03-07)
+
+### fix
+- **Trigger exception isolation**: `GlobalScope.runOneThreadLooop()` now drops
+  faulting threads instead of propagating the exception when
+  `CONTINUE_EXECUTING_ON_ERROR=true`.  `queueTrigger()` similarly wraps
+  evaluation and execution in a try/catch so a bad trigger cannot crash the
+  game loop.  `CSimulation` on-tick trigger loop guards each trigger
+  individually.
+- **SaveGame/LoadGame implemented**: `SaveGame` now serializes all JASS
+  primitive globals (integer, real, boolean, string) and per-player resource
+  totals to `~/.warsmash/saves/<name>.w3s`.  `LoadGame` reads the file and
+  restores globals and player resources immediately.  Complex handle state
+  (units, heroes) still requires full map-reload coordination but mission
+  progress variables are now durable across crashes and intentional quits.
+- **Item removal cleanup** (`CSimulation.removeItem`): the TODO on
+  `setHidden(true)` is resolved — items are now properly deregistered from
+  `worldCollision`, `handleIdToItem`, and the `items` list before being
+  tombstoned.
+- **`IsTimerDialogDisplayed`**: returns the real frame visibility state
+  (previously hardcoded `false`).
+- **`PlayThematic`/`EndThematic`**: now route through the existing music system
+  (`playMusic` / `stopMusic + playMapMusic`).
+- **`SetIntegerGameState`/`GetIntegerGameState`**: backed by an `EnumMap` in
+  `CommonEnvironment`; values now persist for the session.
+- **`CinematicMode`**: hides the HUD and disables user control on entry;
+  restores both on exit.
+- **`TriggerRegisterGameStateEvent` argument index bug**: `limitval` was
+  incorrectly reading from arg index 2 (same as `opcode`) instead of arg 3.
+- **`TriggerSleepAction`/`TriggerWaitForSound`**: no-thread edge case now logs
+  and continues (with trigger handle context) instead of throwing when
+  `CONTINUE_EXECUTING_ON_ERROR=true`.
+- **`GetSoundDuration`**: null-guard added (was NPE-prone on a null sound handle).
+- **`TriggerRegisterGameStateEvent` error spam**: `DIVINE_INTERVENTION` and
+  `DISCONNECTED` states no longer print a stderr error; they silently return
+  null handles (the correct behavior for not-yet-triggered events).
+
+### test
+- Added `CGameSaveTest` (11 tests): roundtrip for all primitive global types,
+  player-resource roundtrip, map-path preservation, multi-global roundtrip,
+  missing-file null return, corrupt-file null return, directory auto-creation.
+
+
+| `qol` | Quality of life (player or developer) |
+| `render` | Rendering correctness or visuals |
+| `fix` | General bug fix |
+| `break` | Breaking change requiring user action |
+
+---
+
 ## Campaign Map Startup Reliability Pass (2026-03-06)
 
 ### fix
