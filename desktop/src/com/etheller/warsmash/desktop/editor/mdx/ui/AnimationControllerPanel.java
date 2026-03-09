@@ -4,6 +4,7 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
 
@@ -103,6 +104,7 @@ public class AnimationControllerPanel extends JPanel implements YseraGUIListener
 		});
 
 		final JButton playAnimationButton = new JButton("Play Animation");
+		playAnimationButton.setMnemonic(KeyEvent.VK_P);
 		playAnimationButton.setToolTipText("Play the currently selected animation sequence");
 		playAnimationButton.getAccessibleContext().setAccessibleName("Play Animation");
 		final ActionListener playAnimationActionListener = new ActionListener() {
@@ -114,14 +116,17 @@ public class AnimationControllerPanel extends JPanel implements YseraGUIListener
 		playAnimationButton.addActionListener(playAnimationActionListener);
 
 		this.defaultLoopButton = new JRadioButton("Default Loop");
+		this.defaultLoopButton.setMnemonic(KeyEvent.VK_D);
 		this.defaultLoopButton.setToolTipText("Loop the animation based on its default settings");
 		this.defaultLoopButton.getAccessibleContext().setAccessibleName("Default Loop Mode");
 
 		this.alwaysLoopButton = new JRadioButton("Always Loop");
+		this.alwaysLoopButton.setMnemonic(KeyEvent.VK_A);
 		this.alwaysLoopButton.setToolTipText("Force the animation to loop continuously");
 		this.alwaysLoopButton.getAccessibleContext().setAccessibleName("Always Loop Mode");
 
 		this.neverLoopButton = new JRadioButton("Never Loop");
+		this.neverLoopButton.setMnemonic(KeyEvent.VK_N);
 		this.neverLoopButton.setToolTipText("Play the animation once without looping");
 		this.neverLoopButton.getAccessibleContext().setAccessibleName("Never Loop Mode");
 
