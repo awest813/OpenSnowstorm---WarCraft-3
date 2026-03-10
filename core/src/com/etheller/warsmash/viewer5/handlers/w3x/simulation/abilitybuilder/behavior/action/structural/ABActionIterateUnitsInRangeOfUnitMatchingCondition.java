@@ -10,6 +10,7 @@ import com.etheller.warsmash.parsers.jass.JassTextGeneratorCallStmt;
 import com.etheller.warsmash.parsers.jass.JassTextGeneratorStmt;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
+import com.badlogic.gdx.utils.Pool;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitEnumFunction;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.behavior.callback.floatcallbacks.ABFloatCallback;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.behavior.callback.unitcallbacks.ABUnitCallback;
@@ -26,6 +27,15 @@ public class ABActionIterateUnitsInRangeOfUnitMatchingCondition implements ABAct
 	private ABUnitCallback originUnit;
 	private ABFloatCallback range;
 
+	// ⚡ Bolt Optimization: Use an object pool for the CUnitEnumFunction to prevent allocating an anonymous class
+	// on every tick during spatial queries, while avoiding re-entrancy bugs. This reduces GC pressure safely.
+	private final Pool<IterateUnitsInRangeOfUnitMatchingConditionEnum> enumFunctionPool = new Pool<IterateUnitsInRangeOfUnitMatchingConditionEnum>() {
+		@Override
+		protected IterateUnitsInRangeOfUnitMatchingConditionEnum newObject() {
+			return new IterateUnitsInRangeOfUnitMatchingConditionEnum();
+		}
+	};
+
 	@Override
 	public void runAction(final CSimulation game, final CUnit caster, final Map<String, Object> localStore,
 			final int castId) {
@@ -34,25 +44,59 @@ public class ABActionIterateUnitsInRangeOfUnitMatchingCondition implements ABAct
 
 		recycleRect.set(originUnitTarget.getX() - rangeVal, originUnitTarget.getY() - rangeVal, rangeVal * 2,
 				rangeVal * 2);
-		game.getWorldCollision().enumUnitsInRect(recycleRect, new CUnitEnumFunction() {
-			@Override
-			public boolean call(final CUnit enumUnit) {
-				if (originUnitTarget.canReach(enumUnit, rangeVal)) {
-					localStore.put(ABLocalStoreKeys.MATCHINGUNIT + castId, enumUnit);
-					if ((ABActionIterateUnitsInRangeOfUnitMatchingCondition.this.condition == null)
-							|| ABActionIterateUnitsInRangeOfUnitMatchingCondition.this.condition.evaluate(game, caster,
-									localStore, castId)) {
-						localStore.put(ABLocalStoreKeys.ENUMUNIT + castId, enumUnit);
-						for (final ABAction iterationAction : ABActionIterateUnitsInRangeOfUnitMatchingCondition.this.iterationActions) {
-							iterationAction.runAction(game, caster, localStore, castId);
-						}
-					}
-				}
-				return false;
-			}
-		});
+		IterateUnitsInRangeOfUnitMatchingConditionEnum enumFunction = this.enumFunctionPool.obtain();
+		try {
+			game.getWorldCollision().enumUnitsInRect(recycleRect,
+					enumFunction.reset(game, caster, localStore, castId, originUnitTarget, rangeVal));
+		} finally {
+			enumFunction.clear(); // Clear references to prevent memory leaks even if exception occurs
+			this.enumFunctionPool.free(enumFunction);
+		}
 		localStore.remove(ABLocalStoreKeys.ENUMUNIT + castId);
 		localStore.remove(ABLocalStoreKeys.MATCHINGUNIT + castId);
+	}
+
+	private final class IterateUnitsInRangeOfUnitMatchingConditionEnum implements CUnitEnumFunction {
+		private CSimulation game;
+		private CUnit caster;
+		private Map<String, Object> localStore;
+		private int castId;
+		private CUnit originUnitTarget;
+		private float rangeVal;
+
+		public IterateUnitsInRangeOfUnitMatchingConditionEnum reset(final CSimulation game, final CUnit caster, final Map<String, Object> localStore,
+				final int castId, final CUnit originUnitTarget, final float rangeVal) {
+			this.game = game;
+			this.caster = caster;
+			this.localStore = localStore;
+			this.castId = castId;
+			this.originUnitTarget = originUnitTarget;
+			this.rangeVal = rangeVal;
+			return this;
+		}
+
+		public void clear() {
+			this.game = null;
+			this.caster = null;
+			this.localStore = null;
+			this.originUnitTarget = null;
+		}
+
+		@Override
+		public boolean call(final CUnit enumUnit) {
+			if (this.originUnitTarget.canReach(enumUnit, this.rangeVal)) {
+				this.localStore.put(ABLocalStoreKeys.MATCHINGUNIT + this.castId, enumUnit);
+				if ((ABActionIterateUnitsInRangeOfUnitMatchingCondition.this.condition == null)
+						|| ABActionIterateUnitsInRangeOfUnitMatchingCondition.this.condition.evaluate(this.game, this.caster,
+								this.localStore, this.castId)) {
+					this.localStore.put(ABLocalStoreKeys.ENUMUNIT + this.castId, enumUnit);
+					for (final ABAction iterationAction : ABActionIterateUnitsInRangeOfUnitMatchingCondition.this.iterationActions) {
+						iterationAction.runAction(this.game, this.caster, this.localStore, this.castId);
+					}
+				}
+			}
+			return false;
+		}
 	}
 
 	@Override

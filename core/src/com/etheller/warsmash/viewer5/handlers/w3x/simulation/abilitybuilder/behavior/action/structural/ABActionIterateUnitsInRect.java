@@ -8,6 +8,7 @@ import com.badlogic.gdx.math.Rectangle;
 import com.etheller.warsmash.parsers.jass.JassTextGenerator;
 import com.etheller.warsmash.parsers.jass.JassTextGeneratorCallStmt;
 import com.etheller.warsmash.parsers.jass.JassTextGeneratorStmt;
+import com.badlogic.gdx.utils.Pool;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitEnumFunction;
@@ -23,21 +24,59 @@ public class ABActionIterateUnitsInRect implements ABAction {
 	private Integer y2;
 	private List<ABAction> iterationActions;
 
+	// ⚡ Bolt Optimization: Use an object pool for the CUnitEnumFunction to prevent allocating an anonymous class
+	// on every tick during spatial queries, while avoiding re-entrancy bugs. This reduces GC pressure safely.
+	private final Pool<IterateUnitsInRectEnum> enumFunctionPool = new Pool<IterateUnitsInRectEnum>() {
+		@Override
+		protected IterateUnitsInRectEnum newObject() {
+			return new IterateUnitsInRectEnum();
+		}
+	};
+
 	@Override
 	public void runAction(final CSimulation game, final CUnit caster, final Map<String, Object> localStore,
 			final int castId) {
 		recycleRect.set(this.x1, this.y1, this.x2 - this.x1, this.y2 - this.y1);
-		game.getWorldCollision().enumUnitsInRect(recycleRect, new CUnitEnumFunction() {
-			@Override
-			public boolean call(final CUnit enumUnit) {
-				localStore.put(ABLocalStoreKeys.ENUMUNIT + castId, enumUnit);
-				for (final ABAction iterationAction : ABActionIterateUnitsInRect.this.iterationActions) {
-					iterationAction.runAction(game, caster, localStore, castId);
-				}
-				return false;
-			}
-		});
+		IterateUnitsInRectEnum enumFunction = this.enumFunctionPool.obtain();
+		try {
+			game.getWorldCollision().enumUnitsInRect(recycleRect,
+					enumFunction.reset(game, caster, localStore, castId));
+		} finally {
+			enumFunction.clear(); // Clear references to prevent memory leaks even if exception occurs
+			this.enumFunctionPool.free(enumFunction);
+		}
 		localStore.remove(ABLocalStoreKeys.ENUMUNIT + castId);
+	}
+
+	private final class IterateUnitsInRectEnum implements CUnitEnumFunction {
+		private CSimulation game;
+		private CUnit caster;
+		private Map<String, Object> localStore;
+		private int castId;
+
+		public IterateUnitsInRectEnum reset(final CSimulation game, final CUnit caster, final Map<String, Object> localStore,
+				final int castId) {
+			this.game = game;
+			this.caster = caster;
+			this.localStore = localStore;
+			this.castId = castId;
+			return this;
+		}
+
+		public void clear() {
+			this.game = null;
+			this.caster = null;
+			this.localStore = null;
+		}
+
+		@Override
+		public boolean call(final CUnit enumUnit) {
+			this.localStore.put(ABLocalStoreKeys.ENUMUNIT + this.castId, enumUnit);
+			for (final ABAction iterationAction : ABActionIterateUnitsInRect.this.iterationActions) {
+				iterationAction.runAction(this.game, this.caster, this.localStore, this.castId);
+			}
+			return false;
+		}
 	}
 
 	@Override
