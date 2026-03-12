@@ -4,7 +4,10 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 
+import java.awt.Dimension;
+
 import javax.swing.JOptionPane;
+import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
@@ -13,6 +16,7 @@ public class ExceptionPopup {
 	public static void display(final Throwable e) {
 
 		final JTextPane pane = new JTextPane();
+		pane.setEditable(false);
 		final OutputStream stream = new OutputStream() {
 			public void updateStreamWith(final String s) {
 				final Document doc = pane.getDocument();
@@ -43,12 +47,16 @@ public class ExceptionPopup {
 		final PrintStream ps = new PrintStream(stream);
 		ps.println("Unknown error occurred:");
 		e.printStackTrace(ps);
-		JOptionPane.showMessageDialog(null, pane);
+
+		JScrollPane scrollPane = new JScrollPane(pane);
+		scrollPane.setPreferredSize(new Dimension(600, 400));
+		JOptionPane.showMessageDialog(null, scrollPane, "Error", JOptionPane.ERROR_MESSAGE);
 	}
 
 	public static void display(final String s, final Exception e) {
 
 		final JTextPane pane = new JTextPane();
+		pane.setEditable(false);
 		final OutputStream stream = new OutputStream() {
 			public void updateStreamWith(final String s) {
 				final Document doc = pane.getDocument();
@@ -79,6 +87,9 @@ public class ExceptionPopup {
 		final PrintStream ps = new PrintStream(stream);
 		ps.println(s + ":");
 		e.printStackTrace(ps);
-		JOptionPane.showMessageDialog(null, pane);
+
+		JScrollPane scrollPane = new JScrollPane(pane);
+		scrollPane.setPreferredSize(new Dimension(600, 400));
+		JOptionPane.showMessageDialog(null, scrollPane, "Error", JOptionPane.ERROR_MESSAGE);
 	}
 }
