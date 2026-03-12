@@ -3,6 +3,7 @@ package com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.beh
 import java.util.Map;
 
 import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.utils.Pool;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitEnumFunction;
@@ -12,10 +13,15 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.beha
 public class ABCallbackCountUnitsInRangeOfUnit extends ABIntegerCallback {
 
 	private static final Rectangle recycleRect = new Rectangle();
+	private static final Pool<CountUnitsEnumFunction> enumPool = new Pool<CountUnitsEnumFunction>() {
+		@Override
+		protected CountUnitsEnumFunction newObject() {
+			return new CountUnitsEnumFunction();
+		}
+	};
+
 	private ABUnitCallback unit;
 	private ABFloatCallback range;
-	
-	private int count = 0;
 	
 	@Override
 	public Integer callback(CSimulation game, CUnit caster, Map<String, Object> localStore, final int castId) {
@@ -24,18 +30,39 @@ public class ABCallbackCountUnitsInRangeOfUnit extends ABIntegerCallback {
 		
 		recycleRect.set(originUnitTarget.getX() - rangeVal, originUnitTarget.getY() - rangeVal, rangeVal * 2,
 				rangeVal * 2);
-		count = 0; 
 		
-		game.getWorldCollision().enumUnitsInRect(recycleRect, new CUnitEnumFunction() {
-			@Override
-			public boolean call(final CUnit enumUnit) {
-				if (originUnitTarget.canReach(enumUnit, rangeVal)) {
-					count++;
-				}
-				return false;
-			}
-		});
-		return count;
+		CountUnitsEnumFunction countEnum = enumPool.obtain();
+		countEnum.reset(originUnitTarget, rangeVal);
+		try {
+			game.getWorldCollision().enumUnitsInRect(recycleRect, countEnum);
+			return countEnum.count;
+		} finally {
+			countEnum.clear();
+			enumPool.free(countEnum);
+		}
 	}
 
+	private static final class CountUnitsEnumFunction implements CUnitEnumFunction {
+		private CUnit originUnitTarget;
+		private float rangeVal;
+		public int count;
+
+		public void reset(CUnit originUnitTarget, float rangeVal) {
+			this.originUnitTarget = originUnitTarget;
+			this.rangeVal = rangeVal;
+			this.count = 0;
+		}
+
+		public void clear() {
+			this.originUnitTarget = null;
+		}
+
+		@Override
+		public boolean call(final CUnit enumUnit) {
+			if (this.originUnitTarget.canReach(enumUnit, this.rangeVal)) {
+				this.count++;
+			}
+			return false;
+		}
+	}
 }
