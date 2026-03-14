@@ -43,7 +43,11 @@ public class ExceptionPopup {
 		final PrintStream ps = new PrintStream(stream);
 		ps.println("Unknown error occurred:");
 		e.printStackTrace(ps);
-		JOptionPane.showMessageDialog(null, pane);
+
+		pane.setEditable(false);
+		javax.swing.JScrollPane scrollPane = new javax.swing.JScrollPane(pane);
+		scrollPane.setPreferredSize(new java.awt.Dimension(600, 400));
+		JOptionPane.showMessageDialog(null, scrollPane, "Error", JOptionPane.ERROR_MESSAGE);
 	}
 
 	public static void display(final String s, final Exception e) {
@@ -79,6 +83,10 @@ public class ExceptionPopup {
 		final PrintStream ps = new PrintStream(stream);
 		ps.println(s + ":");
 		e.printStackTrace(ps);
-		JOptionPane.showMessageDialog(null, pane);
+
+		pane.setEditable(false);
+		javax.swing.JScrollPane scrollPane = new javax.swing.JScrollPane(pane);
+		scrollPane.setPreferredSize(new java.awt.Dimension(600, 400));
+		JOptionPane.showMessageDialog(null, scrollPane, "Error", JOptionPane.ERROR_MESSAGE);
 	}
 }
