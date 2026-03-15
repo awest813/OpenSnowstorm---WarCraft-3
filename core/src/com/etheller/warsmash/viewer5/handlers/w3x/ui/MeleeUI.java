@@ -405,6 +405,63 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 
 	private final BuildOnBuildingIntersector buildOnBuildingIntersector = new BuildOnBuildingIntersector();
 
+	private final class DragSelectEnumFunction implements CUnitEnumFunction {
+		@Override
+		public boolean call(final CUnit unit) {
+			final RenderUnit renderUnit = MeleeUI.this.war3MapViewer.getRenderPeer(unit);
+			if (!unit.isDead()
+					&& renderUnit.isSelectable(MeleeUI.this.war3MapViewer.simulation,
+							MeleeUI.this.war3MapViewer.getLocalPlayerIndex())
+					&& MeleeUI.this.dragSelectPreviewUnitsUpcoming.add(renderUnit)) {
+				final SimpleStatusBarFrame simpleStatusBarFrame = getHpBar();
+				if (!unit.isInvulnerable()) {
+					positionHealthBar(simpleStatusBarFrame, renderUnit, 1.0f);
+				}
+				if (!MeleeUI.this.dragSelectPreviewUnits.contains(renderUnit)) {
+					MeleeUI.this.war3MapViewer.showUnitMouseOverHighlight(renderUnit);
+				}
+			}
+			return false;
+		}
+	}
+
+	private final com.badlogic.gdx.utils.Pool<DragSelectEnumFunction> dragSelectEnumPool = new com.badlogic.gdx.utils.Pool<DragSelectEnumFunction>() {
+		@Override
+		protected DragSelectEnumFunction newObject() {
+			return new DragSelectEnumFunction();
+		}
+	};
+
+	private final class SelectNearbyUnitsEnumFunction implements CUnitEnumFunction {
+		private List<RenderWidget> unitList;
+		private boolean shiftDown;
+		private RenderUnit mouseOverUnit;
+
+		public SelectNearbyUnitsEnumFunction reset(final List<RenderWidget> unitList, final boolean shiftDown,
+				final RenderUnit mouseOverUnit) {
+			this.unitList = unitList;
+			this.shiftDown = shiftDown;
+			this.mouseOverUnit = mouseOverUnit;
+			return this;
+		}
+
+		@Override
+		public boolean call(final CUnit unit) {
+			if (unit.getUnitType() == this.mouseOverUnit.getSimulationUnit().getUnitType()) {
+				final RenderUnit renderPeer = MeleeUI.this.war3MapViewer.getRenderPeer(unit);
+				processClickSelect(this.unitList, this.shiftDown, renderPeer);
+			}
+			return false;
+		}
+	}
+
+	private final com.badlogic.gdx.utils.Pool<SelectNearbyUnitsEnumFunction> selectNearbyUnitsEnumPool = new com.badlogic.gdx.utils.Pool<SelectNearbyUnitsEnumFunction>() {
+		@Override
+		protected SelectNearbyUnitsEnumFunction newObject() {
+			return new SelectNearbyUnitsEnumFunction();
+		}
+	};
+
 	public int[][] commandCardGridHotkeys = { { Input.Keys.Q, Input.Keys.W, Input.Keys.E, Input.Keys.R },
 			{ Input.Keys.A, Input.Keys.S, Input.Keys.D, Input.Keys.F },
 			{ Input.Keys.Z, Input.Keys.X, Input.Keys.C, Input.Keys.V } };
@@ -1665,25 +1722,13 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 			final float maxDragY = Math.max(this.lastMouseClickLocation.y, this.lastMouseDragStart.y);
 			this.tempRect.set(minDragX, minDragY, maxDragX - minDragX, maxDragY - minDragY);
 			this.dragSelectPreviewUnitsUpcoming.clear();
-			this.war3MapViewer.simulation.getWorldCollision().enumUnitsInRect(this.tempRect, new CUnitEnumFunction() {
-				@Override
-				public boolean call(final CUnit unit) {
-					final RenderUnit renderUnit = MeleeUI.this.war3MapViewer.getRenderPeer(unit);
-					if (!unit.isDead()
-							&& renderUnit.isSelectable(MeleeUI.this.war3MapViewer.simulation,
-									MeleeUI.this.war3MapViewer.getLocalPlayerIndex())
-							&& MeleeUI.this.dragSelectPreviewUnitsUpcoming.add(renderUnit)) {
-						final SimpleStatusBarFrame simpleStatusBarFrame = getHpBar();
-						if (!unit.isInvulnerable()) {
-							positionHealthBar(simpleStatusBarFrame, renderUnit, 1.0f);
-						}
-						if (!MeleeUI.this.dragSelectPreviewUnits.contains(renderUnit)) {
-							MeleeUI.this.war3MapViewer.showUnitMouseOverHighlight(renderUnit);
-						}
-					}
-					return false;
-				}
-			});
+			final DragSelectEnumFunction dragSelectEnumFunction = this.dragSelectEnumPool.obtain();
+			try {
+				this.war3MapViewer.simulation.getWorldCollision().enumUnitsInRect(this.tempRect, dragSelectEnumFunction);
+			}
+			finally {
+				this.dragSelectEnumPool.free(dragSelectEnumFunction);
+			}
 			for (final RenderUnit unit : this.dragSelectPreviewUnits) {
 				if (!this.dragSelectPreviewUnitsUpcoming.contains(unit)) {
 					this.war3MapViewer.clearUnitMouseOverHighlight(unit);
@@ -4656,18 +4701,17 @@ public class MeleeUI implements CUnitStateListener, CommandButtonListener, Comma
 
 	private void processSelectNearbyUnits(final List<RenderWidget> unitList, final boolean shiftDown,
 			final RenderUnit mouseOverUnit) {
-		this.war3MapViewer.simulation.getWorldCollision().enumUnitsInRect(
-				new Rectangle(this.mouseOverUnit.getX() - 1024, this.mouseOverUnit.getY() - 1024, 2048, 2048),
-				new CUnitEnumFunction() {
-					@Override
-					public boolean call(final CUnit unit) {
-						if (unit.getUnitType() == mouseOverUnit.getSimulationUnit().getUnitType()) {
-							final RenderUnit renderPeer = MeleeUI.this.war3MapViewer.getRenderPeer(unit);
-							processClickSelect(unitList, shiftDown, renderPeer);
-						}
-						return false;
-					}
-				});
+		final SelectNearbyUnitsEnumFunction enumFunction = this.selectNearbyUnitsEnumPool.obtain().reset(unitList,
+				shiftDown, mouseOverUnit);
+		try {
+			this.war3MapViewer.simulation.getWorldCollision().enumUnitsInRect(
+					new Rectangle(this.mouseOverUnit.getX() - 1024, this.mouseOverUnit.getY() - 1024, 2048, 2048),
+					enumFunction);
+		}
+		finally {
+			enumFunction.reset(null, false, null); // Clear references
+			this.selectNearbyUnitsEnumPool.free(enumFunction);
+		}
 	}
 
 	private void processClickSelect(final List<RenderWidget> unitList, final boolean shiftDown,
