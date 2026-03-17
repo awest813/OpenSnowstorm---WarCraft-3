@@ -24,6 +24,8 @@ public class TerrainViewPanel extends JPanel {
 				this.environmentFile.getCorners().length * 32)));
 		this.baseFont = getFont();
 		this.biggerFont = this.baseFont.deriveFont(24f);
+		setToolTipText("Terrain View Area");
+		getAccessibleContext().setAccessibleName("Terrain View Area");
 		addMouseListener(new MouseListener() {
 			@Override
 			public void mouseReleased(final MouseEvent e) {
