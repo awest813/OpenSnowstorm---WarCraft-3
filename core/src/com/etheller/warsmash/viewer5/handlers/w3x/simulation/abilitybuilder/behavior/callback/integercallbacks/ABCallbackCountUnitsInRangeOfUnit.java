@@ -5,6 +5,7 @@ import java.util.Map;
 import com.badlogic.gdx.math.Rectangle;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
+import com.badlogic.gdx.utils.Pool;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitEnumFunction;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.behavior.callback.floatcallbacks.ABFloatCallback;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.behavior.callback.unitcallbacks.ABUnitCallback;
@@ -15,7 +16,14 @@ public class ABCallbackCountUnitsInRangeOfUnit extends ABIntegerCallback {
 	private ABUnitCallback unit;
 	private ABFloatCallback range;
 	
-	private int count = 0;
+	// ⚡ Bolt Optimization: Use an object pool for the CUnitEnumFunction to prevent allocating an anonymous class
+	// on every tick during spatial queries, while avoiding re-entrancy bugs. This reduces GC pressure safely.
+	private final Pool<CountUnitsInRangeEnum> enumFunctionPool = new Pool<CountUnitsInRangeEnum>() {
+		@Override
+		protected CountUnitsInRangeEnum newObject() {
+			return new CountUnitsInRangeEnum();
+		}
+	};
 	
 	@Override
 	public Integer callback(CSimulation game, CUnit caster, Map<String, Object> localStore, final int castId) {
@@ -24,18 +32,40 @@ public class ABCallbackCountUnitsInRangeOfUnit extends ABIntegerCallback {
 		
 		recycleRect.set(originUnitTarget.getX() - rangeVal, originUnitTarget.getY() - rangeVal, rangeVal * 2,
 				rangeVal * 2);
-		count = 0; 
 		
-		game.getWorldCollision().enumUnitsInRect(recycleRect, new CUnitEnumFunction() {
-			@Override
-			public boolean call(final CUnit enumUnit) {
-				if (originUnitTarget.canReach(enumUnit, rangeVal)) {
-					count++;
-				}
-				return false;
+		CountUnitsInRangeEnum enumFunction = this.enumFunctionPool.obtain();
+		try {
+			game.getWorldCollision().enumUnitsInRect(recycleRect, enumFunction.reset(originUnitTarget, rangeVal));
+			return enumFunction.count;
+		} finally {
+			enumFunction.clear(); // Clear references to prevent memory leaks even if exception occurs
+			this.enumFunctionPool.free(enumFunction);
+		}
+	}
+
+	private static final class CountUnitsInRangeEnum implements CUnitEnumFunction {
+		private CUnit originUnitTarget;
+		private float rangeVal;
+		private int count;
+
+		public CountUnitsInRangeEnum reset(final CUnit originUnitTarget, final float rangeVal) {
+			this.originUnitTarget = originUnitTarget;
+			this.rangeVal = rangeVal;
+			this.count = 0;
+			return this;
+		}
+
+		public void clear() {
+			this.originUnitTarget = null;
+		}
+
+		@Override
+		public boolean call(final CUnit enumUnit) {
+			if (this.originUnitTarget.canReach(enumUnit, this.rangeVal)) {
+				this.count++;
 			}
-		});
-		return count;
+			return false;
+		}
 	}
 
 }
