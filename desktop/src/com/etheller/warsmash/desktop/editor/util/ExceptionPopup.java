@@ -23,8 +23,9 @@ public class ExceptionPopup {
 					doc.insertString(doc.getLength(), s, null);
 				}
 				catch (final BadLocationException e) {
-					JOptionPane.showMessageDialog(null, "MDL open error popup failed to create info popup.");
-					e.printStackTrace();
+					System.err.println("MDL open error popup failed to create info popup.");
+					JOptionPane.showMessageDialog(null, "MDL open error popup failed to create info popup.", "Error", JOptionPane.ERROR_MESSAGE);
+					e.printStackTrace(System.err);
 				}
 			}
 
@@ -49,6 +50,8 @@ public class ExceptionPopup {
 
 		final JScrollPane scrollPane = new JScrollPane(pane);
 		scrollPane.setPreferredSize(new Dimension(600, 400));
+		scrollPane.getAccessibleContext().setAccessibleName("Error Details");
+		scrollPane.getAccessibleContext().setAccessibleDescription("A scrollable text area containing the full error stacktrace");
 		JOptionPane.showMessageDialog(null, scrollPane, "Error", JOptionPane.ERROR_MESSAGE);
 	}
 
@@ -63,8 +66,9 @@ public class ExceptionPopup {
 					doc.insertString(doc.getLength(), s, null);
 				}
 				catch (final BadLocationException e) {
-					JOptionPane.showMessageDialog(null, "MDL open error popup failed to create info popup.");
-					e.printStackTrace();
+					System.err.println("MDL open error popup failed to create info popup.");
+					JOptionPane.showMessageDialog(null, "MDL open error popup failed to create info popup.", "Error", JOptionPane.ERROR_MESSAGE);
+					e.printStackTrace(System.err);
 				}
 			}
 
@@ -89,6 +93,8 @@ public class ExceptionPopup {
 
 		final JScrollPane scrollPane = new JScrollPane(pane);
 		scrollPane.setPreferredSize(new Dimension(600, 400));
+		scrollPane.getAccessibleContext().setAccessibleName("Error Details");
+		scrollPane.getAccessibleContext().setAccessibleDescription("A scrollable text area containing the full error stacktrace");
 		JOptionPane.showMessageDialog(null, scrollPane, "Error", JOptionPane.ERROR_MESSAGE);
 	}
 }
