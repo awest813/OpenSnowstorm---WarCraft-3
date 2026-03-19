@@ -12,6 +12,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructable;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CDestructableEnumFunction;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
+import com.badlogic.gdx.utils.Pool;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.targeting.AbilityPointTarget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.behavior.callback.floatcallbacks.ABFloatCallback;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilitybuilder.behavior.callback.locationcallbacks.ABLocationCallback;
@@ -26,6 +27,14 @@ public class ABActionIterateDestructablesInRangeOfLocation implements ABAction {
 	private ABFloatCallback range;
 	private List<ABAction> iterationActions;
 
+	// ⚡ Bolt Optimization: Cache enum function to prevent per-tick GC allocations during spatial queries
+	private final Pool<IterateDestructablesInRangeOfLocationEnum> enumFunctionPool = new Pool<IterateDestructablesInRangeOfLocationEnum>() {
+		@Override
+		protected IterateDestructablesInRangeOfLocationEnum newObject() {
+			return new IterateDestructablesInRangeOfLocationEnum();
+		}
+	};
+
 	@Override
 	public void runAction(final CSimulation game, final CUnit caster, final Map<String, Object> localStore,
 			final int castId) {
@@ -33,19 +42,53 @@ public class ABActionIterateDestructablesInRangeOfLocation implements ABAction {
 		final Float rangeVal = this.range.callback(game, caster, localStore, castId);
 
 		recycleRect.set(target.getX() - rangeVal, target.getY() - rangeVal, rangeVal * 2, rangeVal * 2);
-		game.getWorldCollision().enumDestructablesInRect(recycleRect, new CDestructableEnumFunction() {
-			@Override
-			public boolean call(final CDestructable enumDest) {
-				if (enumDest.distance(target.getX(), target.getY()) < rangeVal) {
-					localStore.put(ABLocalStoreKeys.ENUMDESTRUCTABLE + castId, enumDest);
-					for (final ABAction iterationAction : ABActionIterateDestructablesInRangeOfLocation.this.iterationActions) {
-						iterationAction.runAction(game, caster, localStore, castId);
-					}
-				}
-				return false;
-			}
-		});
+		IterateDestructablesInRangeOfLocationEnum enumFunction = this.enumFunctionPool.obtain();
+		try {
+			game.getWorldCollision().enumDestructablesInRect(recycleRect,
+					enumFunction.reset(game, caster, localStore, castId, target, rangeVal));
+		} finally {
+			enumFunction.clear();
+			this.enumFunctionPool.free(enumFunction);
+		}
 		localStore.remove(ABLocalStoreKeys.ENUMDESTRUCTABLE + castId);
+	}
+
+	private final class IterateDestructablesInRangeOfLocationEnum implements CDestructableEnumFunction {
+		private CSimulation game;
+		private CUnit caster;
+		private Map<String, Object> localStore;
+		private int castId;
+		private AbilityPointTarget target;
+		private float rangeVal;
+
+		public IterateDestructablesInRangeOfLocationEnum reset(final CSimulation game, final CUnit caster, final Map<String, Object> localStore,
+				final int castId, final AbilityPointTarget target, final float rangeVal) {
+			this.game = game;
+			this.caster = caster;
+			this.localStore = localStore;
+			this.castId = castId;
+			this.target = target;
+			this.rangeVal = rangeVal;
+			return this;
+		}
+
+		public void clear() {
+			this.game = null;
+			this.caster = null;
+			this.localStore = null;
+			this.target = null;
+		}
+
+		@Override
+		public boolean call(final CDestructable enumDest) {
+			if (enumDest.distance(this.target.getX(), this.target.getY()) < this.rangeVal) {
+				this.localStore.put(ABLocalStoreKeys.ENUMDESTRUCTABLE + this.castId, enumDest);
+				for (final ABAction iterationAction : ABActionIterateDestructablesInRangeOfLocation.this.iterationActions) {
+					iterationAction.runAction(this.game, this.caster, this.localStore, this.castId);
+				}
+			}
+			return false;
+		}
 	}
 
 	@Override
