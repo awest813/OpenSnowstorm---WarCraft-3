@@ -9,6 +9,7 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.GetAbilit
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.generic.CLevelingAbility;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.skills.CAbilityPassiveSpellBase;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.types.definitions.impl.AbstractCAbilityTypeDefinition;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitEnumFunction;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.trigger.enumtypes.CEffectType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponent;
 
@@ -19,6 +20,40 @@ public abstract class CAbilityAuraBase extends CAbilityPassiveSpellBase {
 	private War3ID buffId;
 	private SimulationRenderComponent fx;
 	private int nextAreaCheck = 0;
+
+	// ⚡ Bolt: Cache enum function to prevent per-tick garbage collection overhead
+	private CSimulation tickGame;
+	private CUnit tickSource;
+	private final CUnitEnumFunction auraEnumFunction = new CUnitEnumFunction() {
+		@Override
+		public boolean call(final CUnit enumUnit) {
+			if (enumUnit.canBeTargetedBy(tickGame, tickSource, getTargetsAllowed())) {
+				// TODO: the below system of adding an ability instead leveling it should maybe
+				// be standardized
+				final CLevelingAbility existingBuff = enumUnit
+						.getAbility(GetAbilityByRawcodeVisitor.getInstance().reset(getBuffId()));
+				boolean addNewBuff = false;
+				final int level = getLevel();
+				if (existingBuff == null) {
+					addNewBuff = true;
+				}
+				else {
+					if (existingBuff.getLevel() < level) {
+						enumUnit.remove(tickGame, existingBuff);
+						addNewBuff = true;
+					}
+				}
+				if (addNewBuff) {
+					final CBuffAuraBase buff = createBuff(tickGame.getHandleIdAllocator().createId(), tickSource, enumUnit);
+					buff.setAuraSourceUnit(tickSource);
+					buff.setAuraSourceAbility(CAbilityAuraBase.this);
+					buff.setLevel(tickGame, tickSource, level);
+					enumUnit.add(tickGame, buff);
+				}
+			}
+			return false;
+		}
+	};
 
 	public CAbilityAuraBase(final int handleId, final War3ID code, final War3ID alias) {
 		super(handleId, code, alias);
@@ -44,33 +79,14 @@ public abstract class CAbilityAuraBase extends CAbilityPassiveSpellBase {
 	public void onTick(final CSimulation game, final CUnit source) {
 		final int gameTurnTick = game.getGameTurnTick();
 		if (gameTurnTick >= nextAreaCheck) {
-			game.getWorldCollision().enumUnitsInRange(source.getX(), source.getY(), getAreaOfEffect(), (enumUnit) -> {
-				if (enumUnit.canBeTargetedBy(game, source, getTargetsAllowed())) {
-					// TODO: the below system of adding an ability instead leveling it should maybe
-					// be standardized
-					final CLevelingAbility existingBuff = enumUnit
-							.getAbility(GetAbilityByRawcodeVisitor.getInstance().reset(getBuffId()));
-					boolean addNewBuff = false;
-					final int level = getLevel();
-					if (existingBuff == null) {
-						addNewBuff = true;
-					}
-					else {
-						if (existingBuff.getLevel() < level) {
-							enumUnit.remove(game, existingBuff);
-							addNewBuff = true;
-						}
-					}
-					if (addNewBuff) {
-						final CBuffAuraBase buff = createBuff(game.getHandleIdAllocator().createId(), source, enumUnit);
-						buff.setAuraSourceUnit(source);
-						buff.setAuraSourceAbility(this);
-						buff.setLevel(game, source, level);
-						enumUnit.add(game, buff);
-					}
-				}
-				return false;
-			});
+			this.tickGame = game;
+			this.tickSource = source;
+			try {
+				game.getWorldCollision().enumUnitsInRange(source.getX(), source.getY(), getAreaOfEffect(), this.auraEnumFunction);
+			} finally {
+				this.tickGame = null;
+				this.tickSource = null;
+			}
 			nextAreaCheck = gameTurnTick + AURA_PERIODIC_CHECK_TIME_TICKS;
 		}
 	}
