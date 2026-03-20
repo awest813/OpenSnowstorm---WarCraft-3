@@ -44,6 +44,9 @@ public class AbilityBuilderUIPanel extends JPanel {
 		idsListModel = new DefaultListModel<AbilityBuilderConfiguration>();
 		idsList = new JList<AbilityBuilderConfiguration>(idsListModel);
 		idsList.setPreferredSize(new Dimension(200, 1));
+		idsList.setToolTipText("List of loaded ability definitions");
+		idsList.getAccessibleContext().setAccessibleName("Ability Definitions List");
+		idsList.getAccessibleContext().setAccessibleDescription("Select an ability definition to view or edit its properties.");
 		idsList.setCellRenderer(new AbilityBuilderDupeCellRenderer());
 
 		abilityBuilderConfigTree = AbilityBuilderConfigTree.create();
