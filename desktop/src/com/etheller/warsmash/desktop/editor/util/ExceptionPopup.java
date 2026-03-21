@@ -1,6 +1,7 @@
 package com.etheller.warsmash.desktop.editor.util;
 
 import java.awt.Dimension;
+import java.awt.Font;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -16,6 +17,7 @@ public class ExceptionPopup {
 
 		final JTextPane pane = new JTextPane();
 		pane.setEditable(false);
+		pane.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
 		final OutputStream stream = new OutputStream() {
 			public void updateStreamWith(final String s) {
 				final Document doc = pane.getDocument();
@@ -56,6 +58,7 @@ public class ExceptionPopup {
 
 		final JTextPane pane = new JTextPane();
 		pane.setEditable(false);
+		pane.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
 		final OutputStream stream = new OutputStream() {
 			public void updateStreamWith(final String s) {
 				final Document doc = pane.getDocument();
