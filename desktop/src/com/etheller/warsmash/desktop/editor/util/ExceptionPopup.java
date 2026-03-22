@@ -15,6 +15,7 @@ public class ExceptionPopup {
 	public static void display(final Throwable e) {
 
 		final JTextPane pane = new JTextPane();
+		pane.setFont(new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12));
 		pane.setEditable(false);
 		final OutputStream stream = new OutputStream() {
 			public void updateStreamWith(final String s) {
@@ -55,6 +56,7 @@ public class ExceptionPopup {
 	public static void display(final String s, final Exception e) {
 
 		final JTextPane pane = new JTextPane();
+		pane.setFont(new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12));
 		pane.setEditable(false);
 		final OutputStream stream = new OutputStream() {
 			public void updateStreamWith(final String s) {
