@@ -149,6 +149,9 @@ public class AnimationControllerPanel extends JPanel implements YseraGUIListener
 
 		final JLabel levelOfDetailLabel = new JLabel("Level of Detail");
 		final JSpinner levelOfDetailSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 5, 1));
+		levelOfDetailSpinner.setToolTipText("Adjust the level of detail");
+		levelOfDetailLabel.setLabelFor(levelOfDetailSpinner);
+		levelOfDetailLabel.setDisplayedMnemonic(KeyEvent.VK_L);
 		levelOfDetailSpinner.addChangeListener(new ChangeListener() {
 			@Override
 			public void stateChanged(final ChangeEvent e) {
