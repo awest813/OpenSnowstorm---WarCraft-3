@@ -4,6 +4,7 @@ import com.etheller.warsmash.units.GameObject;
 import com.etheller.warsmash.util.War3ID;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CSimulation;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnit;
+import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CUnitEnumFunction;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.CWidget;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.autocast.AutocastType;
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.abilities.autocast.CAutocastAbility;
@@ -27,6 +28,9 @@ public class CAbilityKaboom extends CAbilityUnitOrPointTargetSpellBase implement
 	private float buildingDamageFactor;
 	private boolean exploding = false;
 	private boolean autoCastOn = false;
+
+	// ⚡ Bolt: Cache the callback instance to prevent GC allocations
+	private final EnumUnitsInRange enumUnitsInRange = new EnumUnitsInRange();
 
 	public CAbilityKaboom(final int handleId, final War3ID alias) {
 		super(handleId, alias);
@@ -89,23 +93,38 @@ public class CAbilityKaboom extends CAbilityUnitOrPointTargetSpellBase implement
 
 	private void explode(final CSimulation simulation, final CUnit caster) {
 		final float radius = StrictMath.max(partialDamageRadius, fullDamageRadius);
-		simulation.getWorldCollision().enumUnitsInRange(caster.getX(), caster.getY(), radius, (enumUnit) -> {
-			if (enumUnit.canBeTargetedBy(simulation, caster, getTargetsAllowed())) {
+		simulation.getWorldCollision().enumUnitsInRange(caster.getX(), caster.getY(), radius,
+				this.enumUnitsInRange.reset(simulation, caster));
+	}
+
+	private final class EnumUnitsInRange implements CUnitEnumFunction {
+		private CSimulation simulation;
+		private CUnit caster;
+
+		public EnumUnitsInRange reset(final CSimulation simulation, final CUnit caster) {
+			this.simulation = simulation;
+			this.caster = caster;
+			return this;
+		}
+
+		@Override
+		public boolean call(final CUnit enumUnit) {
+			if (enumUnit.canBeTargetedBy(this.simulation, this.caster, getTargetsAllowed())) {
 				float damageAmount;
-				if (caster.canReach(enumUnit, fullDamageRadius)) {
-					damageAmount = fullDamageAmount;
+				if (this.caster.canReach(enumUnit, CAbilityKaboom.this.fullDamageRadius)) {
+					damageAmount = CAbilityKaboom.this.fullDamageAmount;
 				}
 				else {
-					damageAmount = partialDamageAmount;
+					damageAmount = CAbilityKaboom.this.partialDamageAmount;
 				}
 				if (enumUnit.isBuilding()) {
-					damageAmount *= buildingDamageFactor;
+					damageAmount *= CAbilityKaboom.this.buildingDamageFactor;
 				}
-				enumUnit.damage(simulation, caster, false, true, CAttackType.SPELLS, CDamageType.DEMOLITION,
+				enumUnit.damage(this.simulation, this.caster, false, true, CAttackType.SPELLS, CDamageType.DEMOLITION,
 						CWeaponSoundTypeJass.WHOKNOWS.name(), damageAmount);
 			}
 			return false;
-		});
+		}
 	}
 
 	@Override
