@@ -50,6 +50,9 @@ public class AnimationControllerPanel extends JPanel implements YseraGUIListener
 		repopulateSequenceList();
 		this.animationBox = new JComboBox<>(this.animations);
 		this.animationBox.setToolTipText("Select an animation sequence to preview");
+		final JLabel animationBoxLabel = new JLabel("Animation Sequence");
+		animationBoxLabel.setLabelFor(this.animationBox);
+		animationBoxLabel.setDisplayedMnemonic(KeyEvent.VK_S);
 		this.animationBox.getAccessibleContext().setAccessibleName("Animation Sequence Selector");
 		this.animationBox.setRenderer(new BasicComboBoxRenderer() {
 			@Override
@@ -161,7 +164,7 @@ public class AnimationControllerPanel extends JPanel implements YseraGUIListener
 
 		final GroupLayout groupLayout = new GroupLayout(this);
 
-		groupLayout.setHorizontalGroup(groupLayout.createParallelGroup().addComponent(this.animationBox)
+		groupLayout.setHorizontalGroup(groupLayout.createParallelGroup().addComponent(animationBoxLabel).addComponent(this.animationBox)
 				.addGroup(groupLayout.createSequentialGroup().addGap(8)
 						.addGroup(groupLayout.createParallelGroup().addComponent(playAnimationButton)
 								.addComponent(this.defaultLoopButton).addComponent(this.alwaysLoopButton)
@@ -171,7 +174,7 @@ public class AnimationControllerPanel extends JPanel implements YseraGUIListener
 						.addGap(8)
 
 				));
-		groupLayout.setVerticalGroup(groupLayout.createSequentialGroup().addComponent(this.animationBox).addGap(32)
+		groupLayout.setVerticalGroup(groupLayout.createSequentialGroup().addComponent(animationBoxLabel).addComponent(this.animationBox).addGap(32)
 				.addComponent(playAnimationButton).addGap(16).addComponent(this.defaultLoopButton)
 				.addComponent(this.alwaysLoopButton).addComponent(this.neverLoopButton).addGap(16)
 				.addComponent(this.speedSliderLabel).addComponent(this.speedSlider).addGap(16)
