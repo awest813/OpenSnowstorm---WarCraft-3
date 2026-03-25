@@ -20,16 +20,19 @@ import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.AbilityTargetC
 import com.etheller.warsmash.viewer5.handlers.w3x.simulation.util.SimulationRenderComponent;
 
 public class CAbilityNeutralBuilding extends AbstractGenericAliasedAbility {
+	// ⚡ Bolt: Extract and cache callback class to avoid per-tick allocations
 	private final class CUnitEnumFunctionImplementation implements CUnitEnumFunction {
-		private final int maxMapPlayers;
-		private final CSimulation game;
-		private final CUnit unit;
+		private int maxMapPlayers;
+		private CSimulation game;
+		private CUnit unit;
 		private boolean updated = false;
 
-		private CUnitEnumFunctionImplementation(final int maxMapPlayers, final CSimulation game, final CUnit unit) {
+		public CUnitEnumFunctionImplementation reset(final int maxMapPlayers, final CSimulation game, final CUnit unit) {
 			this.maxMapPlayers = maxMapPlayers;
 			this.game = game;
 			this.unit = unit;
+			this.updated = false;
+			return this;
 		}
 
 		@Override
@@ -64,6 +67,8 @@ public class CAbilityNeutralBuilding extends AbstractGenericAliasedAbility {
 	private final CUnit[] selectedPlayerUnit = new CUnit[WarsmashConstants.MAX_PLAYERS];
 	private final SimulationRenderComponent[] selectedPlayerUnitFx = new SimulationRenderComponent[WarsmashConstants.MAX_PLAYERS];
 	private final Rectangle recycleRect = new Rectangle();
+	// ⚡ Bolt: Use a cached callback instance
+	private final CUnitEnumFunctionImplementation perUnitCallback = new CUnitEnumFunctionImplementation();
 
 	public CAbilityNeutralBuilding(final int handleId, final War3ID code, final War3ID alias, final float activationRadius,
 			final int interactionType, final boolean showSelectUnitButton, final boolean showUnitIndicator,
@@ -102,10 +107,10 @@ public class CAbilityNeutralBuilding extends AbstractGenericAliasedAbility {
 				}
 			}
 			if (searchUnits) {
-				final CUnitEnumFunctionImplementation perUnitCallback = new CUnitEnumFunctionImplementation(
-						maxMapPlayers, game, unit);
 				game.getWorldCollision().enumUnitsInRect(recycleRect.set(unit.getX() - activationRadius,
-						unit.getY() - activationRadius, activationRadius * 2, activationRadius * 2), perUnitCallback);
+						unit.getY() - activationRadius, activationRadius * 2, activationRadius * 2), this.perUnitCallback.reset(maxMapPlayers, game, unit));
+				this.perUnitCallback.game = null; // ⚡ Bolt: Clear references
+				this.perUnitCallback.unit = null; // ⚡ Bolt: Clear references
 				unit.notifyOrdersChanged();
 			}
 			nextUpdateTick = gameTurnTick + UNIT_CHECK_DELAY;
