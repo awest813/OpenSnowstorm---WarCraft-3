@@ -4,6 +4,8 @@ import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.Toolkit;
+import javax.swing.KeyStroke;
 import java.awt.event.KeyEvent;
 import java.io.File;
 
@@ -66,6 +68,7 @@ public class YseraPanel extends JPanel {
 		final JMenuItem openItem = new JMenuItem("Open");
 		openItem.setMnemonic(KeyEvent.VK_O);
 		openItem.setToolTipText("Open Model");
+		openItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
 		openItem.getAccessibleContext().setAccessibleName("Open Model");
 		openItem.addActionListener(new ActionListener() {
 			@Override
