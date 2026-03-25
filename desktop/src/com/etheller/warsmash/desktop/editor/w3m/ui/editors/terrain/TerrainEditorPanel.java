@@ -4,6 +4,8 @@ import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.Toolkit;
+import javax.swing.KeyStroke;
 import java.awt.event.KeyEvent;
 import java.io.File;
 import java.io.IOException;
@@ -87,6 +89,7 @@ public class TerrainEditorPanel extends AbstractWorldEditorPanel {
 		final JMenuItem openItem = new JMenuItem("Open");
 		openItem.setMnemonic(KeyEvent.VK_O);
 		openItem.setToolTipText("Open Map");
+		openItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx()));
 		openItem.getAccessibleContext().setAccessibleName("Open Map");
 		openItem.addActionListener(new ActionListener() {
 			@Override
