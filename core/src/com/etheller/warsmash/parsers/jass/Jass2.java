@@ -18,6 +18,7 @@ import com.badlogic.gdx.audio.Sound;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.Pool;
 import com.badlogic.gdx.utils.viewport.Viewport;
 import com.etheller.interpreter.ast.debug.JassException;
 import com.etheller.interpreter.ast.execution.JassThread;
@@ -260,6 +261,106 @@ import com.etheller.warsmash.viewer5.handlers.w3x.ui.dialog.CScriptDialogButton;
 import net.warsmash.parsers.jass.SmashJassParser;
 
 public class Jass2 {
+
+	/**
+	 * BOLT OPTIMIZATION:
+	 * Replaced anonymous CUnitEnumFunction allocations with a reusable Pool to eliminate
+	 * GC overhead during frequent spatial queries (GroupEnumUnits*) in the Jass VM.
+	 * Expected Impact: Eliminates object churn (1 allocation per spatial query), reducing
+	 * GC pauses during heavy combat scenarios where groups are constantly enumerated.
+	 */
+	private static final class CountedUnitEnumFunction implements CUnitEnumFunction, Pool.Poolable {
+		private List<CUnit> group;
+		private TriggerBooleanExpression filter;
+		private GlobalScope globalScope;
+		private TriggerExecutionScope triggerScope;
+		private int countLimit;
+		private int count = 0;
+		private CUnit whichUnit;
+		private float x;
+		private float y;
+		private float radius;
+		private int mode; // 0: RectCounted, 1: RangeCounted/RangeOfLocCounted, 2: RangeOfUnitCounted
+
+
+		@Override
+		public void reset() {
+			this.group = null;
+			this.filter = null;
+			this.globalScope = null;
+			this.triggerScope = null;
+			this.whichUnit = null;
+		}
+
+		public CountedUnitEnumFunction resetRect(List<CUnit> group, TriggerBooleanExpression filter, GlobalScope globalScope, TriggerExecutionScope triggerScope, int countLimit) {
+			this.group = group;
+			this.filter = filter;
+			this.globalScope = globalScope;
+			this.triggerScope = triggerScope;
+			this.countLimit = countLimit;
+			this.count = 0;
+			this.mode = 0;
+			return this;
+		}
+
+		public CountedUnitEnumFunction resetRange(List<CUnit> group, float x, float y, float radius, TriggerBooleanExpression filter, GlobalScope globalScope, TriggerExecutionScope triggerScope, int countLimit) {
+			this.group = group;
+			this.x = x;
+			this.y = y;
+			this.radius = radius;
+			this.filter = filter;
+			this.globalScope = globalScope;
+			this.triggerScope = triggerScope;
+			this.countLimit = countLimit;
+			this.count = 0;
+			this.mode = 1;
+			return this;
+		}
+
+		public CountedUnitEnumFunction resetRangeOfUnit(List<CUnit> group, CUnit whichUnit, float radius, TriggerBooleanExpression filter, GlobalScope globalScope, TriggerExecutionScope triggerScope, int countLimit) {
+			this.group = group;
+			this.whichUnit = whichUnit;
+			this.radius = radius;
+			this.filter = filter;
+			this.globalScope = globalScope;
+			this.triggerScope = triggerScope;
+			this.countLimit = countLimit;
+			this.count = 0;
+			this.mode = 2;
+			return this;
+		}
+
+		@Override
+		public boolean call(final CUnit unit) {
+			boolean pass = true;
+			if (mode == 1) {
+				pass = (unit.distance(x, y) <= radius);
+			} else if (mode == 2) {
+				pass = whichUnit.canReach(unit, radius);
+			}
+
+			if (pass) {
+				if ((filter == null) || filter.evaluate(globalScope,
+						CommonTriggerExecutionScope.filterScope(triggerScope, unit))) {
+					// TODO the trigger scope for evaluation here might need to be a clean one?
+					group.add(unit);
+					this.count++;
+					if (this.count >= countLimit) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+	}
+
+	private static final Pool<CountedUnitEnumFunction> countedUnitEnumFunctionPool = new Pool<CountedUnitEnumFunction>() {
+		@Override
+		protected CountedUnitEnumFunction newObject() {
+			return new CountedUnitEnumFunction();
+		}
+	};
+
 	public static final boolean REPORT_SYNTAX_ERRORS = true;
 
 	public static CommonEnvironment loadCommon(final DataSource dataSource, final Viewport uiViewport,
@@ -1289,14 +1390,12 @@ public class Jass2 {
 							final TriggerBooleanExpression filter = nullable(arguments, 2,
 									ObjectJassValueVisitor.<TriggerBooleanExpression>getInstance());
 							// TODO: maybe change so that calling corpse function here as well is not needed
-							CommonEnvironment.this.simulation.getWorldCollision().enumUnitsInRect(rect, (unit) -> {
-								if ((filter == null) || filter.evaluate(globalScope,
-										CommonTriggerExecutionScope.filterScope(triggerScope, unit))) {
-									// TODO the trigger scope for evaluation here might need to be a clean one?
-									group.add(unit);
-								}
-								return false;
-							});
+							CountedUnitEnumFunction enumFunction = countedUnitEnumFunctionPool.obtain().resetRect(group, filter, globalScope, triggerScope, Integer.MAX_VALUE);
+							try {
+								CommonEnvironment.this.simulation.getWorldCollision().enumUnitsInRect(rect, enumFunction);
+							} finally {
+								countedUnitEnumFunctionPool.free(enumFunction);
+							}
 						}
 						return null;
 					});
@@ -1308,24 +1407,12 @@ public class Jass2 {
 						final TriggerBooleanExpression filter = nullable(arguments, 2,
 								ObjectJassValueVisitor.<TriggerBooleanExpression>getInstance());
 						final Integer countLimit = arguments.get(3).visit(IntegerJassValueVisitor.getInstance());
-						CommonEnvironment.this.simulation.getWorldCollision().enumUnitsOrCorpsesInRect(rect,
-								new CUnitEnumFunction() {
-									int count = 0;
-
-									@Override
-									public boolean call(final CUnit unit) {
-										if ((filter == null) || filter.evaluate(globalScope,
-												CommonTriggerExecutionScope.filterScope(triggerScope, unit))) {
-											// TODO the trigger scope for evaluation here might need to be a clean one?
-											group.add(unit);
-											this.count++;
-											if (this.count >= countLimit) {
-												return true;
-											}
-										}
-										return false;
-									}
-								});
+						CountedUnitEnumFunction enumFunction = countedUnitEnumFunctionPool.obtain().resetRect(group, filter, globalScope, triggerScope, countLimit);
+						try {
+							CommonEnvironment.this.simulation.getWorldCollision().enumUnitsOrCorpsesInRect(rect, enumFunction);
+						} finally {
+							countedUnitEnumFunctionPool.free(enumFunction);
+						}
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("GroupEnumUnitsInRange",
@@ -1385,27 +1472,12 @@ public class Jass2 {
 						final TriggerBooleanExpression filter = nullable(arguments, 4,
 								ObjectJassValueVisitor.<TriggerBooleanExpression>getInstance());
 						final Integer countLimit = arguments.get(5).visit(IntegerJassValueVisitor.getInstance());
-						CommonEnvironment.this.simulation.getWorldCollision().enumUnitsOrCorpsesInRange(x, y, radius,
-								new CUnitEnumFunction() {
-									int count = 0;
-
-									@Override
-									public boolean call(final CUnit unit) {
-										if (unit.distance(x, y) <= radius) {
-											if ((filter == null) || filter.evaluate(globalScope,
-													CommonTriggerExecutionScope.filterScope(triggerScope, unit))) {
-												// TODO the trigger scope for evaluation here might need to be a clean
-												// one?
-												group.add(unit);
-												this.count++;
-												if (this.count >= countLimit) {
-													return true;
-												}
-											}
-										}
-										return false;
-									}
-								});
+						CountedUnitEnumFunction enumFunction = countedUnitEnumFunctionPool.obtain().resetRange(group, x, y, radius, filter, globalScope, triggerScope, countLimit);
+						try {
+							CommonEnvironment.this.simulation.getWorldCollision().enumUnitsOrCorpsesInRange(x, y, radius, enumFunction);
+						} finally {
+							countedUnitEnumFunctionPool.free(enumFunction);
+						}
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("GroupEnumUnitsInRangeOfLocCounted",
@@ -1420,27 +1492,12 @@ public class Jass2 {
 						final TriggerBooleanExpression filter = nullable(arguments, 3,
 								ObjectJassValueVisitor.<TriggerBooleanExpression>getInstance());
 						final Integer countLimit = arguments.get(4).visit(IntegerJassValueVisitor.getInstance());
-						CommonEnvironment.this.simulation.getWorldCollision().enumUnitsOrCorpsesInRange(x, y, radius,
-								new CUnitEnumFunction() {
-									int count = 0;
-
-									@Override
-									public boolean call(final CUnit unit) {
-										if (unit.distance(x, y) <= radius) {
-											if ((filter == null) || filter.evaluate(globalScope,
-													CommonTriggerExecutionScope.filterScope(triggerScope, unit))) {
-												// TODO the trigger scope for evaluation here might need to be a
-												// clean one?
-												group.add(unit);
-												this.count++;
-												if (this.count >= countLimit) {
-													return true;
-												}
-											}
-										}
-										return false;
-									}
-								});
+						CountedUnitEnumFunction enumFunction = countedUnitEnumFunctionPool.obtain().resetRange(group, x, y, radius, filter, globalScope, triggerScope, countLimit);
+						try {
+							CommonEnvironment.this.simulation.getWorldCollision().enumUnitsOrCorpsesInRange(x, y, radius, enumFunction);
+						} finally {
+							countedUnitEnumFunctionPool.free(enumFunction);
+						}
 						return null;
 					});
 			jassProgramVisitor.getJassNativeManager().createNative("GroupImmediateOrder",
@@ -10641,27 +10698,12 @@ public class Jass2 {
 								ObjectJassValueVisitor.getInstance());
 						final Integer countLimit = arguments.get(4).visit(IntegerJassValueVisitor.getInstance());
 
-						CommonEnvironment.this.simulation.getWorldCollision().enumUnitsOrCorpsesInRect(
-								tempRect.set(x - radius, y - radius, radius * 2, radius * 2), new CUnitEnumFunction() {
-									int count = 0;
-
-									@Override
-									public boolean call(final CUnit unit) {
-										if (whichUnit.canReach(unit, radius)) {
-											if ((filter == null) || filter.evaluate(globalScope,
-													CommonTriggerExecutionScope.filterScope(triggerScope, unit))) {
-												// TODO the trigger scope for evaluation here might need to be a clean
-												// one?
-												group.add(unit);
-												this.count++;
-												if (this.count >= countLimit) {
-													return true;
-												}
-											}
-										}
-										return false;
-									}
-								});
+						CountedUnitEnumFunction enumFunction = countedUnitEnumFunctionPool.obtain().resetRangeOfUnit(group, whichUnit, radius, filter, globalScope, triggerScope, countLimit);
+						try {
+							CommonEnvironment.this.simulation.getWorldCollision().enumUnitsOrCorpsesInRect(tempRect.set(x - radius, y - radius, radius * 2, radius * 2), enumFunction);
+						} finally {
+							countedUnitEnumFunctionPool.free(enumFunction);
+						}
 						return null;
 					});
 
