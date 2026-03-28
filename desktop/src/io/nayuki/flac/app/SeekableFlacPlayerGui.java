@@ -169,6 +169,8 @@ public final class SeekableFlacPlayerGui {
 		public AudioPlayerGui(String windowTitle) {
 			// Create and configure slider
 			slider = new JSlider(SwingConstants.HORIZONTAL, 0, 10000, 0);
+			slider.setToolTipText("Seek Audio Position");
+			slider.getAccessibleContext().setAccessibleName("Audio Position");
 			sliderUi = new MetalSliderUI();
 			slider.setUI(sliderUi);
 			slider.setPreferredSize(new Dimension(800, 50));
