@@ -29,6 +29,9 @@ public class CWorldCollision {
 	private final ObjectPool<Set<CUnit>> intersectedUnitsSetPool;
 	// PERFORMANCE: Cached Rectangle objects to eliminate GC allocations during spatial queries
 	private final ObjectPool<Rectangle> rectPool;
+	private final ObjectPool<UnitEnumIntersector> unitEnumIntersectorPool;
+	private final ObjectPool<UnitInRangeCallback> unitInRangeCallbackPool;
+	private final ObjectPool<DestructableInRangeCallback> destructableInRangeCallbackPool;
 
 	public CWorldCollision(final Rectangle entireMapBounds, final float maxCollisionRadius) {
 		this.deadUnitCollision = new Quadtree<>(entireMapBounds);
@@ -47,6 +50,9 @@ public class CWorldCollision {
 		this.itemEnumIntersectorBoolean = new ItemEnumIntersectorBoolean();
 		this.intersectedUnitsSetPool = new ObjectPool<>(32, HashSet::new);
 		this.rectPool = new ObjectPool<>(16, Rectangle::new);
+		this.unitEnumIntersectorPool = new ObjectPool<>(32, UnitEnumIntersector::new);
+		this.unitInRangeCallbackPool = new ObjectPool<>(32, UnitInRangeCallback::new);
+		this.destructableInRangeCallbackPool = new ObjectPool<>(32, DestructableInRangeCallback::new);
 	}
 
 	public void addUnit(final CUnit unit) {
@@ -162,15 +168,13 @@ public class CWorldCollision {
 	public void enumUnitsInRect(final Rectangle rect, final CUnitEnumFunction callback) {
 		final Set<CUnit> intersectedUnits = this.intersectedUnitsSetPool.acquire();
 		intersectedUnits.clear();
+		final UnitEnumIntersector intersector = this.unitEnumIntersectorPool.acquire();
 		try {
-			this.anyUnitEnumerableCollision.intersect(rect, (unit) -> {
-				if (unit.isHidden() || !intersectedUnits.add(unit)) {
-					return false;
-				}
-				return callback.call(unit);
-			});
+			this.anyUnitEnumerableCollision.intersect(rect, intersector.reset(intersectedUnits, callback));
 		}
 		finally {
+			intersector.clear();
+			this.unitEnumIntersectorPool.release(intersector);
 			intersectedUnits.clear();
 			this.intersectedUnitsSetPool.release(intersectedUnits);
 		}
@@ -179,15 +183,13 @@ public class CWorldCollision {
 	public void enumCorpsesInRect(final Rectangle rect, final CUnitEnumFunction callback) {
 		final Set<CUnit> intersectedUnits = this.intersectedUnitsSetPool.acquire();
 		intersectedUnits.clear();
+		final UnitEnumIntersector intersector = this.unitEnumIntersectorPool.acquire();
 		try {
-			this.deadUnitCollision.intersect(rect, (unit) -> {
-				if (unit.isHidden() || !intersectedUnits.add(unit)) {
-					return false;
-				}
-				return callback.call(unit);
-			});
+			this.deadUnitCollision.intersect(rect, intersector.reset(intersectedUnits, callback));
 		}
 		finally {
+			intersector.clear();
+			this.unitEnumIntersectorPool.release(intersector);
 			intersectedUnits.clear();
 			this.intersectedUnitsSetPool.release(intersectedUnits);
 		}
@@ -196,18 +198,16 @@ public class CWorldCollision {
 	public void enumUnitsOrCorpsesInRect(final Rectangle rect, final CUnitEnumFunction callback) {
 		final Set<CUnit> intersectedUnits = this.intersectedUnitsSetPool.acquire();
 		intersectedUnits.clear();
+		final UnitEnumIntersector intersector = this.unitEnumIntersectorPool.acquire();
 		try {
-			final QuadtreeIntersector<CUnit> intersectorFxn = (unit) -> {
-				if (unit.isHidden() || !intersectedUnits.add(unit)) {
-					return false;
-				}
-				return callback.call(unit);
-			};
+			final QuadtreeIntersector<CUnit> intersectorFxn = intersector.reset(intersectedUnits, callback);
 			if (!this.anyUnitEnumerableCollision.intersect(rect, intersectorFxn)) {
 				this.deadUnitCollision.intersect(rect, intersectorFxn);
 			}
 		}
 		finally {
+			intersector.clear();
+			this.unitEnumIntersectorPool.release(intersector);
 			intersectedUnits.clear();
 			this.intersectedUnitsSetPool.release(intersectedUnits);
 		}
@@ -215,45 +215,39 @@ public class CWorldCollision {
 
 	public void enumCorpsesInRange(final float x, final float y, final float radius, final CUnitEnumFunction callback) {
 		final Rectangle rect = this.rectPool.acquire();
+		final UnitInRangeCallback inRangeCallback = this.unitInRangeCallbackPool.acquire();
 		try {
-			enumCorpsesInRect(rect.set(x - radius, y - radius, radius * 2, radius * 2), (enumUnit) -> {
-				if (enumUnit.canReach(x, y, radius)) {
-					return callback.call(enumUnit);
-				}
-				return false;
-			});
+			enumCorpsesInRect(rect.set(x - radius, y - radius, radius * 2, radius * 2), inRangeCallback.reset(x, y, radius, callback));
 		}
 		finally {
+			inRangeCallback.clear();
+			this.unitInRangeCallbackPool.release(inRangeCallback);
 			this.rectPool.release(rect);
 		}
 	}
 
 	public void enumUnitsInRange(final float x, final float y, final float radius, final CUnitEnumFunction callback) {
 		final Rectangle rect = this.rectPool.acquire();
+		final UnitInRangeCallback inRangeCallback = this.unitInRangeCallbackPool.acquire();
 		try {
-			enumUnitsInRect(rect.set(x - radius, y - radius, radius * 2, radius * 2), (enumUnit) -> {
-				if (enumUnit.canReach(x, y, radius)) {
-					return callback.call(enumUnit);
-				}
-				return false;
-			});
+			enumUnitsInRect(rect.set(x - radius, y - radius, radius * 2, radius * 2), inRangeCallback.reset(x, y, radius, callback));
 		}
 		finally {
+			inRangeCallback.clear();
+			this.unitInRangeCallbackPool.release(inRangeCallback);
 			this.rectPool.release(rect);
 		}
 	}
 
 	public void enumUnitsOrCorpsesInRange(final float x, final float y, final float radius, final CUnitEnumFunction callback) {
 		final Rectangle rect = this.rectPool.acquire();
+		final UnitInRangeCallback inRangeCallback = this.unitInRangeCallbackPool.acquire();
 		try {
-			enumUnitsOrCorpsesInRect(rect.set(x - radius, y - radius, radius * 2, radius * 2), (enumUnit) -> {
-				if (enumUnit.canReach(x, y, radius)) {
-					return callback.call(enumUnit);
-				}
-				return false;
-			});
+			enumUnitsOrCorpsesInRect(rect.set(x - radius, y - radius, radius * 2, radius * 2), inRangeCallback.reset(x, y, radius, callback));
 		}
 		finally {
+			inRangeCallback.clear();
+			this.unitInRangeCallbackPool.release(inRangeCallback);
 			this.rectPool.release(rect);
 		}
 	}
@@ -277,15 +271,13 @@ public class CWorldCollision {
 	public void enumDestructablesInRange(final float x, final float y, final float radius,
 			final CDestructableEnumFunction callback) {
 		final Rectangle rect = this.rectPool.acquire();
+		final DestructableInRangeCallback inRangeCallback = this.destructableInRangeCallbackPool.acquire();
 		try {
-			enumDestructablesInRect(rect.set(x - radius, y - radius, radius * 2, radius * 2), (enumUnit) -> {
-				if (enumUnit.distance(x, y) <= radius) {
-					return callback.call(enumUnit);
-				}
-				return false;
-			});
+			enumDestructablesInRect(rect.set(x - radius, y - radius, radius * 2, radius * 2), inRangeCallback.reset(x, y, radius, callback));
 		}
 		finally {
+			inRangeCallback.clear();
+			this.destructableInRangeCallbackPool.release(inRangeCallback);
 			this.rectPool.release(rect);
 		}
 	}
@@ -489,6 +481,85 @@ public class CWorldCollision {
 				return false;
 			}
 			return true;
+		}
+	}
+
+
+	private static final class UnitEnumIntersector implements QuadtreeIntersector<CUnit> {
+		private Set<CUnit> intersectedUnits;
+		private CUnitEnumFunction callback;
+
+		public void clear() {
+			this.intersectedUnits = null;
+			this.callback = null;
+		}
+
+		public UnitEnumIntersector reset(final Set<CUnit> intersectedUnits, final CUnitEnumFunction callback) {
+			this.intersectedUnits = intersectedUnits;
+			this.callback = callback;
+			return this;
+		}
+
+		@Override
+		public boolean onIntersect(final CUnit unit) {
+			if (unit.isHidden() || !this.intersectedUnits.add(unit)) {
+				return false;
+			}
+			return this.callback.call(unit);
+		}
+	}
+
+	private static final class UnitInRangeCallback implements CUnitEnumFunction {
+		private float x;
+		private float y;
+		private float radius;
+		private CUnitEnumFunction callback;
+
+		public void clear() {
+			this.callback = null;
+		}
+
+		public UnitInRangeCallback reset(final float x, final float y, final float radius, final CUnitEnumFunction callback) {
+			this.x = x;
+			this.y = y;
+			this.radius = radius;
+			this.callback = callback;
+			return this;
+		}
+
+		@Override
+		public boolean call(final CUnit enumUnit) {
+			if (enumUnit.canReach(this.x, this.y, this.radius)) {
+				return this.callback.call(enumUnit);
+			}
+			return false;
+		}
+	}
+
+	private static final class DestructableInRangeCallback implements CDestructableEnumFunction {
+		private float x;
+		private float y;
+		private float radius;
+		private CDestructableEnumFunction callback;
+
+		public void clear() {
+			this.callback = null;
+		}
+
+		public DestructableInRangeCallback reset(final float x, final float y, final float radius, final CDestructableEnumFunction callback) {
+			this.x = x;
+			this.y = y;
+			this.radius = radius;
+			this.callback = callback;
+			return this;
+		}
+
+		@Override
+		public boolean call(final CDestructable enumUnit) {
+			if (enumUnit.distance(this.x, this.y) <= this.radius) {
+				return this.callback.call(enumUnit);
+			}
+			return false;
 		}
 	}
 }
