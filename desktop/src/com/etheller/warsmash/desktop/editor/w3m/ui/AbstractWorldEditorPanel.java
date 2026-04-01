@@ -31,6 +31,7 @@ public abstract class AbstractWorldEditorPanel extends JPanel {
 
 	protected JToolBar createToolbar(final WorldEditArt worldEditArt, final DataTable worldEditorData) {
 		final JToolBar toolBar = new JToolBar();
+		toolBar.getAccessibleContext().setAccessibleName("Main Toolbar");
 		makeButton(worldEditArt, worldEditorData, toolBar, "newMap", "ToolBarIcon_New", "WESTRING_TOOLBAR_NEW");
 		final JButton openButton = makeButton(worldEditArt, worldEditorData, toolBar, "openMap", "ToolBarIcon_Open",
 				"WESTRING_TOOLBAR_OPEN");
